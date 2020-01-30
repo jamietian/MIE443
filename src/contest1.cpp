@@ -112,14 +112,17 @@ int main(int argc, char **argv)
 
         //Control logic after bumpers are being pressed.
         ROS_INFO("Postion: (%f, %f) Orientation: %f degrees Range: %f", posX, posY, RAD2DEG(yaw), minLaserDist);
-		if (any_bumper_pressed){
+		if (any_bumper_pressed) {
 			bumperPressed();
 		}
-		else if (minLaserDist < 0.5){
+		else if (minLaserDist < 0.5) {
 			//determine laser sectors
 
 		}
-		else if ()
+		else {
+			linear = 0;
+			angular = 0;
+		}
 				// if (posX < 0.5 && yaw < M_PI / 12 && !any_bumper_pressed) {
         //     angular = 0.0;
         //     linear = 0.2;
