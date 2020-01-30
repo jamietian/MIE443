@@ -18,7 +18,6 @@
 
 float angular = 0.0;
 float linear = 0.0;
-
 float posX = 0.0, posY = 0.0, yaw = 0.0;
 
 float minLaserDist = std::numeric_limits<float>::infinity();
@@ -33,7 +32,7 @@ void bumperCallback(const kobuki_msgs::BumperEvent::ConstPtr& msg)
 
 void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 {
-	minLaserDist = std::numeric_limits<float>::infinity();
+		minLaserDist = std::numeric_limits<float>::infinity();
     nLasers = (msg->angle_max - msg->angle_min) / msg->angle_increment;
     desiredNLasers = desiredAngle*M_PI / (180*msg->angle_increment);
     ROS_INFO("Size of laser scan array: %i and size of offset: %i", nLasers, desiredNLasers);
@@ -48,6 +47,7 @@ void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
         }
     }
 }
+
 void odomCallback(const nav_msgs::Odometry::ConstPtr&msg)
 {
     posX = msg->pose.pose.position.x;
@@ -66,7 +66,7 @@ int main(int argc, char **argv)
     ros::Subscriber laser_sub = nh.subscribe("scan", 10, &laserCallback);
 
     ros::Publisher vel_pub = nh.advertise<geometry_msgs::Twist>("cmd_vel_mux/input/teleop", 1);
-    
+
     ros::Subscriber odom = nh.subscribe("odom", 1, &odomCallback);
 
     ros::Rate loop_rate(10);
@@ -84,12 +84,12 @@ int main(int argc, char **argv)
     while(ros::ok() && secondsElapsed <= 480) {
         ros::spinOnce();
         //fill with your code
-        
+
         bool any_bumper_pressed = false;
         for (uint32_t b_idx = 0; b_idx < N_BUMPER; ++b_idx) {
             any_bumper_pressed |= (bumper[b_idx] == kobuki_msgs::BumperEvent::PRESSED);
         }
-        
+
         //Control logic after bumpers are being pressed.
         ROS_INFO("Postion: (%f, %f) Orientation: %f degrees Range: %f", posX, posY, RAD2DEG(yaw), minLaserDist);
         if (posX < 0.5 && yaw < M_PI / 12 && !any_bumper_pressed) {
