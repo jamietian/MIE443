@@ -32,7 +32,7 @@ void bumperCallback(const kobuki_msgs::BumperEvent::ConstPtr& msg)
 
 void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 {
-		minLaserDist = std::numeric_limits<float>::infinity();
+	minLaserDist = std::numeric_limits<float>::infinity();
     nLasers = (msg->angle_max - msg->angle_min) / msg->angle_increment;
     desiredNLasers = desiredAngle*M_PI / (180*msg->angle_increment);
     ROS_INFO("Size of laser scan array: %i and size of offset: %i", nLasers, desiredNLasers);
@@ -56,6 +56,27 @@ void odomCallback(const nav_msgs::Odometry::ConstPtr&msg)
     ROS_INFO("Position: (%f, %f) Orientation: %f rad or %f degrees.", posX, posY, yaw, RAD2DEG(yaw));
 }
 
+void bumperPressed(){
+		for (unint32_t b_idx = 0; b_idx < N_BUMPER; ++b_idx){
+			if(b_idx == 0){
+				//action
+			}
+			else if(b_idx == 1){
+				//action
+			}
+			else if(b_idx == 2){
+				//action
+			}
+		}
+}
+
+void move(){
+
+}
+
+void rotate(){
+
+}
 
 int main(int argc, char **argv)
 {
@@ -64,10 +85,9 @@ int main(int argc, char **argv)
 
     ros::Subscriber bumper_sub = nh.subscribe("mobile_base/events/bumper", 10, &bumperCallback);
     ros::Subscriber laser_sub = nh.subscribe("scan", 10, &laserCallback);
+	ros::Subscriber odom = nh.subscribe("odom", 1, &odomCallback);
 
     ros::Publisher vel_pub = nh.advertise<geometry_msgs::Twist>("cmd_vel_mux/input/teleop", 1);
-
-    ros::Subscriber odom = nh.subscribe("odom", 1, &odomCallback);
 
     ros::Rate loop_rate(10);
 
@@ -92,30 +112,38 @@ int main(int argc, char **argv)
 
         //Control logic after bumpers are being pressed.
         ROS_INFO("Postion: (%f, %f) Orientation: %f degrees Range: %f", posX, posY, RAD2DEG(yaw), minLaserDist);
-        if (posX < 0.5 && yaw < M_PI / 12 && !any_bumper_pressed) {
-            angular = 0.0;
-            linear = 0.2;
-        }
-        else if (yaw < M_PI / 2 && posX > 0.5 && !any_bumper_pressed) {
-            angular = M_PI / 6;
-            linear = 0.0;
-        }
-        else if (minLaserDist > 1. && !any_bumper_pressed) {
-            linear = 0.1;
-            if (yaw < 17 / 36 * M_PI || posX > 0.6) {
-                angular = M_PI / 12.;
-            }
-            else if (yaw < 19 / 36 * M_PI || posX < 0.4) {
-                angular = -M_PI / 12.;
-            }
-            else {
-                angular = 0;
-            }
-        }
-        else {
-            angular = 0.0;
-            linear = 0.0;
-        }
+		if (any_bumper_pressed){
+			bumperPressed();
+		}
+		else if (minLaserDist < 0.5){
+			//determine laser sectors
+
+		}
+		else if ()
+				// if (posX < 0.5 && yaw < M_PI / 12 && !any_bumper_pressed) {
+        //     angular = 0.0;
+        //     linear = 0.2;
+        // }
+        // else if (yaw < M_PI / 2 && posX > 0.5 && !any_bumper_pressed) {
+        //     angular = M_PI / 6;
+        //     linear = 0.0;
+        // }
+        // else if (minLaserDist > 1. && !any_bumper_pressed) {
+        //     linear = 0.1;
+        //     if (yaw < 17 / 36 * M_PI || posX > 0.6) {
+        //         angular = M_PI / 12.;
+        //     }
+        //     else if (yaw < 19 / 36 * M_PI || posX < 0.4) {
+        //         angular = -M_PI / 12.;
+        //     }
+        //     else {
+        //         angular = 0;
+        //     }
+        // }
+        // else {
+        //     angular = 0.0;
+        //     linear = 0.0;
+        // }
 
         vel.angular.z = angular;
         vel.linear.x = linear;
