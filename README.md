@@ -10,5 +10,3 @@ roslaunch turtlebot_bringup minimal.launch\
 roslaunch mie443_contest1 gmapping.launch\
 #Terminal 3\
 rosrun mie443_contest1 contest1\
-
-asdf

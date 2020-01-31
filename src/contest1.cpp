@@ -117,7 +117,6 @@ int main(int argc, char **argv)
 		}
 		else if (minLaserDist < 0.5) {
 			//determine laser sectors
-			//asdf
 		}
 		else {
 			linear = 0;
