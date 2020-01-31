@@ -58,7 +58,7 @@ void odomCallback(const nav_msgs::Odometry::ConstPtr&msg)
 
 void bumperPressed(){
 	for (unint32_t b_idx = 0; b_idx < N_BUMPER; ++b_idx){
-		if(b_idx == 0){				
+		if(b_idx == 0){
             //action
 		}
 		else if(b_idx == 1){
@@ -117,6 +117,7 @@ int main(int argc, char **argv)
 		}
 		else if (minLaserDist < 0.5) {
 			//determine laser sectors
+			//asdf
 		}
 		else {
 			linear = 0;
