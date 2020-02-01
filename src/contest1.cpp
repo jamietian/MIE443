@@ -20,8 +20,8 @@ float angular = 0.0;
 float linear = 0.0;
 float posX = 0.0, posY = 0.0, yaw = 0.0;
 
-float minLaserDist = std::numeric_limits<float>::infinity();
-int32_t nLasers=0, desiredNLasers=0, desiredAngle=5;
+float minLaserDist[3] = {std::numeric_limits<float>::infinity(),std::numeric_limits<float>::infinity(),std::numeric_limits<float>::infinity()};
+int32_t nLasers=0, desiredNLasers=0, desiredAngle=5, edgeRange=2;
 
 uint8_t bumper[3] = {kobuki_msgs::BumperEvent::RELEASED, kobuki_msgs::BumperEvent::RELEASED, kobuki_msgs::BumperEvent::RELEASED};
 
@@ -32,13 +32,24 @@ void bumperCallback(const kobuki_msgs::BumperEvent::ConstPtr& msg)
 
 void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 {
-	minLaserDist = std::numeric_limits<float>::infinity();
+	minLaserDist[0] = std::numeric_limits<float>::infinity();
+	minLaserDist[1] = std::numeric_limits<float>::infinity();
+	minLaserDist[2] = std::numeric_limits<float>::infinity();
     nLasers = (msg->angle_max - msg->angle_min) / msg->angle_increment;
     desiredNLasers = desiredAngle*M_PI / (180*msg->angle_increment);
     ROS_INFO("Size of laser scan array: %i and size of offset: %i", nLasers, desiredNLasers);
     if (desiredAngle * M_PI / 180 < msg->angle_max && -desiredAngle * M_PI / 180 > msg->angle_min) {
-        for (uint32_t laser_idx = nLasers / 2 - desiredNLasers; laser_idx < nLasers / 2 + desiredNLasers; ++laser_idx){
-            minLaserDist = std::min(minLaserDist, msg->ranges[laser_idx]);
+		//left range detection
+		for (uint32_t laser_idx = 0; laser_idx < edgeRange; ++laser_idx){
+            minLaserDist[0] = std::min(minLaserDist, msg->ranges[laser_idx]);
+        }
+		//center range detection
+		for (uint32_t laser_idx = nLasers / 2 - desiredNLasers; laser_idx < nLasers / 2 + desiredNLasers; ++laser_idx){
+            minLaserDist[1] = std::min(minLaserDist, msg->ranges[laser_idx]);
+        }
+		//right range detection
+		for (uint32_t laser_idx = nLasers; laser_idx < nLasers-edgeRange; --laser_idx){
+            minLaserDist[2] = std::min(minLaserDist, msg->ranges[laser_idx]);
         }
     }
     else {
@@ -70,12 +81,25 @@ void bumperPressed(){
 	}
 }
 
-void move(){
+void moveDist(float targdist){
+	float prev_posX, prev_posY, distMoved = 0.0;
+	prev_posX = posX;
+	prev_posY = posY;
+	while(distMoved<targdist){
+		dist = std::sqrt(std::pow(posX - prev_posX)+std::pow(posY - prev_posY));
+		vel.angular.z = 0;
+		vel.linear.x = 0.25;
+		vel_pub.publish(vel);
+		ros::spinOnce();
+	}
+}
 
+void moveTime(){
+	//write moveTime fuction here
 }
 
 void rotate(){
-
+	//write rotate function here
 }
 
 int main(int argc, char **argv)
@@ -115,37 +139,13 @@ int main(int argc, char **argv)
 		if (any_bumper_pressed) {
 			bumperPressed();
 		}
-		else if (minLaserDist < 0.5) {
+		else if (minLaserDist[0] > 0.5 && minLaserDist[1] > 0.5 && minLaserDist[2] > 0.5) {
 			//determine laser sectors
 		}
 		else {
 			linear = 0;
 			angular = 0;
 		}
-				// if (posX < 0.5 && yaw < M_PI / 12 && !any_bumper_pressed) {
-        //     angular = 0.0;
-        //     linear = 0.2;
-        // }
-        // else if (yaw < M_PI / 2 && posX > 0.5 && !any_bumper_pressed) {
-        //     angular = M_PI / 6;
-        //     linear = 0.0;
-        // }
-        // else if (minLaserDist > 1. && !any_bumper_pressed) {
-        //     linear = 0.1;
-        //     if (yaw < 17 / 36 * M_PI || posX > 0.6) {
-        //         angular = M_PI / 12.;
-        //     }
-        //     else if (yaw < 19 / 36 * M_PI || posX < 0.4) {
-        //         angular = -M_PI / 12.;
-        //     }
-        //     else {
-        //         angular = 0;
-        //     }
-        // }
-        // else {
-        //     angular = 0.0;
-        //     linear = 0.0;
-        // }
 
         vel.angular.z = angular;
         vel.linear.x = linear;
