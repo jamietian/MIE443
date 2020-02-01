@@ -58,7 +58,7 @@ void odomCallback(const nav_msgs::Odometry::ConstPtr&msg)
 
 void bumperPressed(){
 	for (unint32_t b_idx = 0; b_idx < N_BUMPER; ++b_idx){
-		if(b_idx == 0){				
+		if(b_idx == 0){
             //action
 		}
 		else if(b_idx == 1){
