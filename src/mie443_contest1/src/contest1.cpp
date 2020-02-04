@@ -25,6 +25,8 @@ int32_t nLasers=0, desiredNLasers=0, desiredAngle=5, edgeRange=2;
 
 uint8_t bumper[3] = {kobuki_msgs::BumperEvent::RELEASED, kobuki_msgs::BumperEvent::RELEASED, kobuki_msgs::BumperEvent::RELEASED};
 
+void rotate (double angular_speed, double desired_angle, bool clockwise);
+
 void bumperCallback(const kobuki_msgs::BumperEvent::ConstPtr& msg)
 {
 	bumper[msg->bumper]=msg->state;
@@ -82,28 +84,60 @@ void bumperPressed(){
 	}
 }
 
-void moveDist(float targdist) {
-    ros::NodeHandle nh;
-    ros::Publisher vel_pub = nh.advertise<geometry_msgs::Twist>("cmd_vel_mux/input/teleop", 1);
-    geometry_msgs::Twist vel;
-    float prev_posX, prev_posY, distMoved = 0.0;
-	prev_posX = posX;
-	prev_posY = posY;
-	while(distMoved<targdist){
-		distMoved = sqrt(pow((posX - prev_posX),2)+pow((posY - prev_posY),2));
-		vel.angular.z = 0;
-		vel.linear.x = 0.25;
-		vel_pub.publish(vel);
-		ros::spinOnce();
-	}
-}
+// void moveDist(float targdist) {
+//     ros::NodeHandle nh;
+//     //ros::Publisher vel_pub = nh.advertise<geometry_msgs::Twist>("cmd_vel_mux/input/teleop", 1);
+//     geometry_msgs::Twist vel;
+//     float prev_posX, prev_posY, distMoved = 0.0;
+// 	prev_posX = posX;
+// 	prev_posY = posY;
+// 	while(distMoved<targdist){
+// 		distMoved = sqrt(pow((posX - prev_posX),2)+pow((posY - prev_posY),2));
+// 		vel.angular.z = 0;
+// 		vel.linear.x = 0.25;
+// 		vel_pub.publish(vel);
+// 		ros::spinOnce();
+// 	}
+// }
 
 void moveTime(){
 	//write moveTime fuction here
 }
 
-void rotate(){
-	//write rotate function here
+void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub)
+{
+   geometry_msgs::Twist vel;
+   vel.linear.x = 0.0;
+   vel.linear.y = 0.0;
+   vel.linear.z = 0.0;
+   vel.angular.x = 0.0;
+   vel.angular.y = 0.0;
+   vel.angular.z = angular_speed;
+//    if(clockwise==1)
+//    {
+//        vel.angular.z = -abs(DEG2RAD(angular_speed));
+//    }
+//    else
+//    {
+//        vel.angular.z = abs(DEG2RAD(angular_speed));
+//    }
+    std::cout << "outside the while" << std::endl;
+   ros::Rate loop_rate(10);
+   double current_angle = 0.0;
+   double initial_time = ros::Time::now().toSec();
+   while(current_angle < DEG2RAD(desired_angle))
+   {
+       //std::cout<<current_angle<<std::endl;
+       ROS_INFO("current angle: %f", current_angle);
+       vel_pub.publish(vel);
+       double current_time = ros::Time::now().toSec();
+       current_angle = angular_speed * (current_time - initial_time);
+       ros::spinOnce();
+       loop_rate.sleep();
+       std::cout << "inside the while" << std::endl;
+   }
+   vel.angular.z = 0.0;
+   vel_pub.publish(vel);
 }
 
 int main(int argc, char **argv)
@@ -133,23 +167,25 @@ int main(int argc, char **argv)
         ros::spinOnce();
         //fill with your code
 
+        rotate(0.2, 10, vel_pub);
+
         bool any_bumper_pressed = false;
         for (uint32_t b_idx = 0; b_idx < N_BUMPER; ++b_idx) {
             any_bumper_pressed |= (bumper[b_idx] == kobuki_msgs::BumperEvent::PRESSED);
         }
 
         //Control logic after bumpers are being pressed.
-        ROS_INFO("Postion: (%f, %f) Orientation: %f degrees Range: %f", posX, posY, RAD2DEG(yaw), minLaserDist[1]);
-		if (any_bumper_pressed) {
-			bumperPressed();
-		}
-		else if (minLaserDist[0] > 0.5 && minLaserDist[1] > 0.5 && minLaserDist[2] > 0.5) {
-			//determine laser sectors
-		}
-		else {
-			linear = 0;
-			angular = 0;
-		}
+        //ROS_INFO("Postion: (%f, %f) Orientation: %f degrees Range: %f", posX, posY, RAD2DEG(yaw), minLaserDist[1]);
+		// if (any_bumper_pressed) {
+		// 	bumperPressed();
+		// }
+		// else if (minLaserDist[0] > 0.5 && minLaserDist[1] > 0.5 && minLaserDist[2] > 0.5) {
+		// 	//determine laser sectors
+		// }
+		// else {
+		// 	linear = 0;
+		// 	angular = 0;
+		// }
 
         vel.angular.z = angular;
         vel.linear.x = linear;
