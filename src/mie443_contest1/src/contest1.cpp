@@ -41,20 +41,26 @@ void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
     if (desiredAngle * M_PI / 180 < msg->angle_max && -desiredAngle * M_PI / 180 > msg->angle_min) {
 		//left range detection
 		for (uint32_t laser_idx = 0; laser_idx < edgeRange; ++laser_idx){
-            minLaserDist[0] = std::min(minLaserDist, msg->ranges[laser_idx]);
+            minLaserDist[0] = std::min(minLaserDist[0], msg->ranges[laser_idx]);
         }
 		//center range detection
 		for (uint32_t laser_idx = nLasers / 2 - desiredNLasers; laser_idx < nLasers / 2 + desiredNLasers; ++laser_idx){
-            minLaserDist[1] = std::min(minLaserDist, msg->ranges[laser_idx]);
+            minLaserDist[1] = std::min(minLaserDist[1], msg->ranges[laser_idx]);
         }
 		//right range detection
 		for (uint32_t laser_idx = nLasers; laser_idx < nLasers-edgeRange; --laser_idx){
-            minLaserDist[2] = std::min(minLaserDist, msg->ranges[laser_idx]);
+            minLaserDist[2] = std::min(minLaserDist[2], msg->ranges[laser_idx]);
         }
     }
     else {
         for (uint32_t laser_idx = 0; laser_idx < nLasers; ++laser_idx) {
-            minLaserDist = std::min(minLaserDist, msg->ranges[laser_idx]);
+            minLaserDist[1] = std::min(minLaserDist[1], msg->ranges[laser_idx]);
+        }
+        for (uint32_t laser_idx = nLasers / 2 - desiredNLasers; laser_idx < nLasers / 2 + desiredNLasers; ++laser_idx){
+            minLaserDist[1] = std::min(minLaserDist[1], msg->ranges[laser_idx]);
+        }
+		for (uint32_t laser_idx = nLasers; laser_idx < nLasers-edgeRange; --laser_idx){
+            minLaserDist[2] = std::min(minLaserDist[2], msg->ranges[laser_idx]);
         }
     }
 }
