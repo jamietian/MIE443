@@ -56,12 +56,6 @@ void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
         for (uint32_t laser_idx = 0; laser_idx < nLasers; ++laser_idx) {
             minLaserDist[1] = std::min(minLaserDist[1], msg->ranges[laser_idx]);
         }
-        for (uint32_t laser_idx = nLasers / 2 - desiredNLasers; laser_idx < nLasers / 2 + desiredNLasers; ++laser_idx){
-            minLaserDist[1] = std::min(minLaserDist[1], msg->ranges[laser_idx]);
-        }
-		for (uint32_t laser_idx = nLasers; laser_idx < nLasers-edgeRange; --laser_idx){
-            minLaserDist[2] = std::min(minLaserDist[2], msg->ranges[laser_idx]);
-        }
     }
 }
 
@@ -74,7 +68,8 @@ void odomCallback(const nav_msgs::Odometry::ConstPtr&msg)
 }
 
 void bumperPressed(){
-	for (unint32_t b_idx = 0; b_idx < N_BUMPER; ++b_idx){
+	uint32_t b_idx; // why do I have to write it before
+    for (b_idx = 0; b_idx < N_BUMPER; ++b_idx){
 		if(b_idx == 0){
             //action
 		}
@@ -87,12 +82,15 @@ void bumperPressed(){
 	}
 }
 
-void moveDist(float targdist){
-	float prev_posX, prev_posY, distMoved = 0.0;
+void moveDist(float targdist) {
+    ros::NodeHandle nh;
+    ros::Publisher vel_pub = nh.advertise<geometry_msgs::Twist>("cmd_vel_mux/input/teleop", 1);
+    geometry_msgs::Twist vel;
+    float prev_posX, prev_posY, distMoved = 0.0;
 	prev_posX = posX;
 	prev_posY = posY;
 	while(distMoved<targdist){
-		dist = std::sqrt(std::pow(posX - prev_posX)+std::pow(posY - prev_posY));
+		distMoved = sqrt(pow((posX - prev_posX),2)+pow((posY - prev_posY),2));
 		vel.angular.z = 0;
 		vel.linear.x = 0.25;
 		vel_pub.publish(vel);
@@ -141,7 +139,7 @@ int main(int argc, char **argv)
         }
 
         //Control logic after bumpers are being pressed.
-        ROS_INFO("Postion: (%f, %f) Orientation: %f degrees Range: %f", posX, posY, RAD2DEG(yaw), minLaserDist);
+        ROS_INFO("Postion: (%f, %f) Orientation: %f degrees Range: %f", posX, posY, RAD2DEG(yaw), minLaserDist[1]);
 		if (any_bumper_pressed) {
 			bumperPressed();
 		}
