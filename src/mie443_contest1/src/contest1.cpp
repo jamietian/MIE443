@@ -104,6 +104,36 @@ void moveTime(){
 	//write moveTime fuction here
 }
 
+void rotate(double angular_speed, double angle_desired, bool left, ros::Publisher &vel_pub)
+{
+    geometry_msgs::Twist vel;
+    double orig_angle, angle_rotated = 0.0;
+    orig_angle = yaw; // left pi to right -pi
+    ros::Rate loop_rate(10);
+    while(abs(abs(angle_rotated) - abs(DEG2RAD(angle_desired))) > 0.01)
+    {
+        if (left == 1)
+        {
+            angle_rotated = yaw-orig_angle;
+        }
+        else
+        {
+            angle_rotated = orig_angle-yaw;
+        }
+        
+        vel.linear.x = 0.0;
+        vel.linear.y = 0.0;
+        vel.linear.z = 0.0;
+        vel.angular.x = 0.0;
+        vel.angular.y = 0.0;
+        vel.angular = angular_speed;
+        vel_pub.publish(vel);
+        ros::spinOnce();
+        loop_rate.sleep();
+    }
+
+}
+
 void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub)
 {
    geometry_msgs::Twist vel;
@@ -121,16 +151,15 @@ void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub
 //    {
 //        vel.angular.z = abs(DEG2RAD(angular_speed));
 //    }
-    std::cout << "outside the while" << std::endl;
    ros::Rate loop_rate(10);
    double current_angle = 0.0;
-   double initial_time = ros::Time::now().toSec();
+   double initial_time = ros::WallTime::now().toSec();
    while(current_angle < DEG2RAD(desired_angle))
    {
        //std::cout<<current_angle<<std::endl;
        ROS_INFO("current angle: %f", current_angle);
        vel_pub.publish(vel);
-       double current_time = ros::Time::now().toSec();
+       double current_time = ros::WallTime::now().toSec();
        current_angle = angular_speed * (current_time - initial_time);
        ros::spinOnce();
        loop_rate.sleep();
