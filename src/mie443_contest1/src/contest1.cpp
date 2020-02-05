@@ -69,22 +69,23 @@ void odomCallback(const nav_msgs::Odometry::ConstPtr&msg)
     ROS_INFO("Position: (%f, %f) Orientation: %f rad or %f degrees.", posX, posY, yaw, RAD2DEG(yaw));
 }
 
-void bumperPressed(){
-	uint32_t b_idx; // why do I have to write it before
-    for (b_idx = 0; b_idx < N_BUMPER; ++b_idx){
-		if(b_idx == 0){
-            //action
-		}
-		else if(b_idx == 1){
-			//action
-		}
-		else if(b_idx == 2){
-            //action
-		}
+void checkBumperPressed(uint8_t bumper[3],ros::Publisher &vel_pub)
+{
+	if(bumper[1]==1){
+        moveDist(-0.25,vel_pub);
+	}
+	else if(bumper[0]==1){
+		moveDist(-0.25,vel_pub);
+        rotate(1,30,1,vel_pub);
+	}
+	else if(bumper[2]==1){
+        moveDist(-0.25,vel_pub);
+        rotate(1,30,0,vel_pub);
 	}
 }
 
-void moveDist(float targdist,ros::Publisher &vel_pub) {
+void moveDist(float targdist,ros::Publisher &vel_pub) 
+{
     geometry_msgs::Twist vel;
     ros::Rate loop_rate(10);
     float prev_posX, prev_posY, distMoved = 0.0;
@@ -101,46 +102,35 @@ void moveDist(float targdist,ros::Publisher &vel_pub) {
 	}
 }
 
-void moveTime(){
-	//write moveTime fuction here
-}
-
-void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub)
+void rotate(double angular_speed, double angle_desired, bool isLeft, ros::Publisher &vel_pub)
 {
     geometry_msgs::Twist vel;
-    vel.linear.x = 0.0;
-    vel.linear.y = 0.0;
-    vel.linear.z = 0.0;
-    vel.angular.x = 0.0;
-    vel.angular.y = 0.0;
-    vel.angular.z = angular_speed;
-//    if(clockwise==1)
-//    {
-//        vel.angular.z = -abs(DEG2RAD(angular_speed));
-//    }
-//    else
-//    {
-//        vel.angular.z = abs(DEG2RAD(angular_speed));
-//    }
+    double orig_angle, angle_rotated = 0.0;
+    orig_angle = yaw; // left pi to right -pi
     ros::Rate loop_rate(10);
-    double current_angle = 0.0;
-    double initial_time = ros::WallTime::now().toSec();
-    while(current_angle < DEG2RAD(desired_angle))
+    while(abs(abs(angle_rotated) - abs(DEG2RAD(angle_desired))) > 0.01)
     {
-       //std::cout<<current_angle<<std::endl;
-       ROS_INFO("current angle: %f", current_angle);
-       vel_pub.publish(vel);
-       double current_time = ros::WallTime::now().toSec();
-       current_angle = angular_speed * (current_time - initial_time);
-       ros::spinOnce();
-       loop_rate.sleep();
-       std::cout << "inside the while" << std::endl;
+        if (isLeft == 1){
+            angle_rotated = yaw-orig_angle;
+        }
+        else if (isLeft == 0){
+            angle_rotated = orig_angle-yaw;
+        }
+        
+        vel.linear.x = 0.0;
+        vel.linear.y = 0.0;
+        vel.linear.z = 0.0;
+        vel.angular.x = 0.0;
+        vel.angular.y = 0.0;
+        vel.angular = angular_speed;
+        vel_pub.publish(vel);
+        ros::spinOnce();
+        loop_rate.sleep();
     }
-    vel.angular.z = 0.0;
-    vel_pub.publish(vel);
+
 }
 
-void move (double linear_speed, ros::Publisher &vel_pub)
+void moveSpeed(double linear_speed, ros::Publisher &vel_pub)
 {
    geometry_msgs::Twist vel;
    vel.angular.x = 0.0;
@@ -178,20 +168,7 @@ int main(int argc, char **argv)
     int asdf = 1;
     while(ros::ok() && secondsElapsed <= 480) {
         ros::spinOnce();
-        bool any_bumper_pressed = false;
-        for (uint32_t b_idx = 0; b_idx < N_BUMPER; ++b_idx) {
-            any_bumper_pressed |= (bumper[b_idx] == kobuki_msgs::BumperEvent::PRESSED);
-        }
-
-        //fill with your code
-
-        // laserCallback();
-
-        // if (asdf==1){
-        //     rotate(1, 120, vel_pub);
-        //     moveDist(1,vel_pub);
-        //     asdf++;
-        // }
+        checkBumperPressed(bumper,vel_pub);
         
         ROS_INFO("Postion: (%f, %f) Orientation: %f degrees Range: %f", posX, posY, RAD2DEG(yaw), minLaserDist[1]);
 		
