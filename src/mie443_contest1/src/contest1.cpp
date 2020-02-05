@@ -42,21 +42,8 @@ void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
     desiredNLasers = desiredAngle*M_PI / (180*msg->angle_increment);
     ROS_INFO("Size of laser scan array: %i and size of offset: %i", nLasers, desiredNLasers);
     if (desiredAngle * M_PI / 180 < msg->angle_max && -desiredAngle * M_PI / 180 > msg->angle_min) {
-		// //left range detection
-		// for (uint32_t laser_idx = 0; laser_idx > edgeRange; ++laser_idx){
-        //     minLaserDist[0] = std::min(minLaserDist[0], msg->ranges[laser_idx]);
-        // }
-		// //center range detection
-		// for (uint32_t laser_idx = nLasers / 2 - desiredNLasers; laser_idx < nLasers / 2 + desiredNLasers; ++laser_idx){
-        //     minLaserDist[1] = std::min(minLaserDist[1], msg->ranges[laser_idx]);
-        // }
-		// //right range detection
-		// for (uint32_t laser_idx = 600; laser_idx < 600-edgeRange; --laser_idx){
-        //     minLaserDist[2] = std::min(minLaserDist[2], msg->ranges[laser_idx]);
-        // }
         uint32_t start_index = nLasers/2 - desiredNLasers;
         uint32_t increment_size = 2*desiredNLasers/3;
-
         for (uint32_t index_multiple = 0; index_multiple < 3; index_multiple++){
             uint32_t local_start_index = start_index + increment_size*(index_multiple);
             uint32_t local_end_index = start_index + increment_size*(index_multiple+1);
@@ -64,7 +51,6 @@ void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
                 minLaserDist[index_multiple] = std::min(minLaserDist[index_multiple], msg->ranges[laser_idx]);
             }
         }
-
         ROS_INFO("Left: %f, Center: %f Right: %f", minLaserDist[2],minLaserDist[1],minLaserDist[0]);
     }
     else {
@@ -139,7 +125,7 @@ void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub
     ros::Rate loop_rate(10);
     double current_angle = 0.0;
     double initial_time = ros::WallTime::now().toSec();
-   while(current_angle < DEG2RAD(desired_angle))
+    while(current_angle < DEG2RAD(desired_angle))
     {
        //std::cout<<current_angle<<std::endl;
        ROS_INFO("current angle: %f", current_angle);
@@ -157,24 +143,13 @@ void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub
 void move (double linear_speed, ros::Publisher &vel_pub)
 {
    geometry_msgs::Twist vel;
-   //ros::Rate loop_rate(10);
    vel.angular.x = 0.0;
    vel.angular.y = 0.0;
    vel.angular.z = 0.0;
    vel.linear.y = 0.0;
    vel.linear.z = 0.0;
    vel.linear.x = linear_speed;
-//    if(forward)
-//    {
-//        vel.linear.x = -abs(linear_speed);
-//    }
-//    else
-//    {
-//        vel.linear.x = abs(linear_speed);
-//    }
    vel_pub.publish(vel);
-   //ros::spinOnce();
-   //loop_rate.sleep();
 }
 
 
@@ -203,6 +178,11 @@ int main(int argc, char **argv)
     int asdf = 1;
     while(ros::ok() && secondsElapsed <= 480) {
         ros::spinOnce();
+        bool any_bumper_pressed = false;
+        for (uint32_t b_idx = 0; b_idx < N_BUMPER; ++b_idx) {
+            any_bumper_pressed |= (bumper[b_idx] == kobuki_msgs::BumperEvent::PRESSED);
+        }
+
         //fill with your code
 
         // laserCallback();
@@ -213,23 +193,18 @@ int main(int argc, char **argv)
         //     asdf++;
         // }
         
-        bool any_bumper_pressed = false;
-        for (uint32_t b_idx = 0; b_idx < N_BUMPER; ++b_idx) {
-            any_bumper_pressed |= (bumper[b_idx] == kobuki_msgs::BumperEvent::PRESSED);
-        }
-
-        //Control logic after bumpers are being pressed.
-        //ROS_INFO("Postion: (%f, %f) Orientation: %f degrees Range: %f", posX, posY, RAD2DEG(yaw), minLaserDist[1]);
-		// if (any_bumper_pressed) {
-		// 	bumperPressed();
-		// }
-		// else if (minLaserDist[0] > 0.5 && minLaserDist[1] > 0.5 && minLaserDist[2] > 0.5) {
-		// 	//determine laser sectors
-		// }
-		// else {
-		// 	linear = 0;
-		// 	angular = 0;
-		// }
+        ROS_INFO("Postion: (%f, %f) Orientation: %f degrees Range: %f", posX, posY, RAD2DEG(yaw), minLaserDist[1]);
+		
+        if (any_bumper_pressed) {
+			bumperPressed();
+		}
+		else if (minLaserDist[0] > 0.5 && minLaserDist[1] > 0.5 && minLaserDist[2] > 0.5) {
+			//determine laser sectors
+		}
+		else {
+			linear = 0;
+			angular = 0;
+		}
 
         // The last thing to do is to update the timer.
         secondsElapsed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now()-start).count();
