@@ -66,6 +66,10 @@ void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
             float local_avg = 0.0;
 
             for (uint32_t j = idx_start, idx_end, j++){
+                // infinity filtering
+                if isinf(minLaserDist[j]){
+                    minLaserDist[j] = 0.0;
+                } 
                 local_avg += minLaserDist[j];
             }
 
