@@ -147,7 +147,7 @@ bool checkBumperPressed(uint8_t bumper[3],ros::Publisher &vel_pub)
         return true;
 	}
 	else if(bumper[0]==1){
-		moveDist(-0.25,vel_pub);
+        moveDist(-0.25,vel_pub);
         rotate(1,30,vel_pub);
         return true;
 	}
