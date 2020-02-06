@@ -10,6 +10,7 @@
 
 #include <stdio.h>
 #include <cmath>
+#include <math.h>
 
 #include <chrono>
 
@@ -22,7 +23,8 @@ float posX = 0.0, posY = 0.0, yaw = 0.0;
 
 void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub);
 
-float minLaserDist[3] = {std::numeric_limits<float>::infinity(),std::numeric_limits<float>::infinity(),std::numeric_limits<float>::infinity()};
+float minLaserDist[12] = {};
+float avgLaserDist[3] = {};
 int32_t nLasers=0, desiredNLasers=0, desiredAngle=25, edgeRange= 100;
 
 uint8_t bumper[3] = {kobuki_msgs::BumperEvent::RELEASED, kobuki_msgs::BumperEvent::RELEASED, kobuki_msgs::BumperEvent::RELEASED};
@@ -35,11 +37,11 @@ void bumperCallback(const kobuki_msgs::BumperEvent::ConstPtr& msg)
 void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 {
     // define laser and fill with float
-	minLaserDist[12] = {};
+	// minLaserDist[12] = {};
     std::fill(minLaserDist, minLaserDist+nLasers, std::numeric_limits<float>::infinity());
 
     // define average array
-    avgLaserDist[3] = {};
+    // avgLaserDist[3] = {};
     std::fill(avgLaserDist, avgLaserDist+nLasers, std::numeric_limits<float>::infinity());
 
     nLasers = (msg->angle_max - msg->angle_min) / msg->angle_increment;
@@ -65,15 +67,15 @@ void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
             uint32_t idx_end = idx_start + (i+1)*3;
             float local_avg = 0.0;
 
-            for (uint32_t j = idx_start, idx_end, j++){
+            for (uint32_t j = idx_start; idx_end; j++){
                 // infinity filtering
-                if isinf(minLaserDist[j]){
-                    minLaserDist[j] = 0.0;
-                } 
+                // if (isinf(minLaserDist[j])){
+                //     minLaserDist[j] = 0.0;
+                // } 
                 local_avg += minLaserDist[j];
             }
 
-            avgLaserDist[i] = (float) local_avg / (float) 4
+            avgLaserDist[i] = (float) local_avg / (float) 4;
         }
 
         ROS_INFO("AVG Left: %f, Center: %f Right: %f", avgLaserDist[2],avgLaserDist[1],avgLaserDist[0]);
@@ -147,7 +149,6 @@ void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub
 //    {
 //        vel.angular.z = abs(DEG2RAD(angular_speed));
 //    }
-    int arraySize = myints.size()
     ros::Rate loop_rate(10);
     double current_angle = 0.0;
     double initial_time = ros::WallTime::now().toSec();
