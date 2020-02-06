@@ -20,7 +20,6 @@ float angular = 0.0;
 float linear = 0.0;
 float posX = 0.0, posY = 0.0, yaw = 0.0;
 
-
 void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub);
 
 float minLaserDist[3] = {std::numeric_limits<float>::infinity(),std::numeric_limits<float>::infinity(),std::numeric_limits<float>::infinity()};
@@ -35,29 +34,23 @@ void bumperCallback(const kobuki_msgs::BumperEvent::ConstPtr& msg)
 
 void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 {
-	minLaserDist[0] = std::numeric_limits<float>::infinity();
-	minLaserDist[1] = std::numeric_limits<float>::infinity();
-	minLaserDist[2] = std::numeric_limits<float>::infinity();
+    // define laser and fill with float
+	minLaserDist[12] = {};
+    std::fill(minLaserDist, minLaserDist+nLasers, std::numeric_limits<float>::infinity());
+
+    // define average array
+    avgLaserDist[3] = {};
+    std::fill(avgLaserDist, avgLaserDist+nLasers, std::numeric_limits<float>::infinity());
+
     nLasers = (msg->angle_max - msg->angle_min) / msg->angle_increment;
     desiredNLasers = desiredAngle*M_PI / (180*msg->angle_increment);
     ROS_INFO("Size of laser scan array: %i and size of offset: %i", nLasers, desiredNLasers);
-    if (desiredAngle * M_PI / 180 < msg->angle_max && -desiredAngle * M_PI / 180 > msg->angle_min) {
-		// //left range detection
-		// for (uint32_t laser_idx = 0; laser_idx > edgeRange; ++laser_idx){
-        //     minLaserDist[0] = std::min(minLaserDist[0], msg->ranges[laser_idx]);
-        // }
-		// //center range detection
-		// for (uint32_t laser_idx = nLasers / 2 - desiredNLasers; laser_idx < nLasers / 2 + desiredNLasers; ++laser_idx){
-        //     minLaserDist[1] = std::min(minLaserDist[1], msg->ranges[laser_idx]);
-        // }
-		// //right range detection
-		// for (uint32_t laser_idx = 600; laser_idx < 600-edgeRange; --laser_idx){
-        //     minLaserDist[2] = std::min(minLaserDist[2], msg->ranges[laser_idx]);
-        // }
-        uint32_t start_index = nLasers/2 - desiredNLasers;
-        uint32_t increment_size = 2*desiredNLasers/3;
 
-        for (uint32_t index_multiple = 0; index_multiple < 3; index_multiple++){
+    if (desiredAngle * M_PI / 180 < msg->angle_max && -desiredAngle * M_PI / 180 > msg->angle_min) {
+        uint32_t start_index = nLasers/2 - desiredNLasers;
+        uint32_t increment_size = 2*desiredNLasers/12;
+
+        for (uint32_t index_multiple = 0; index_multiple < 12; index_multiple++){
             uint32_t local_start_index = start_index + increment_size*(index_multiple);
             uint32_t local_end_index = start_index + increment_size*(index_multiple+1);
             for (uint32_t laser_idx = local_start_index; laser_idx < local_end_index; laser_idx++){
@@ -65,7 +58,21 @@ void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
             }
         }
 
-        ROS_INFO("Left: %f, Center: %f Right: %f", minLaserDist[2],minLaserDist[1],minLaserDist[0]);
+        int idx_start = 0;
+        // now take the average per each 3 segment
+        for (uint32_t i = 0; i < 3; i++){
+            idx_start = idx_start + i*3;
+            uint32_t idx_end = idx_start + (i+1)*3;
+            float local_avg = 0.0;
+
+            for (uint32_t j = idx_start, idx_end, j++){
+                local_avg += minLaserDist[j];
+            }
+
+            avgLaserDist[i] = (float) local_avg / (float) 4
+        }
+
+        ROS_INFO("AVG Left: %f, Center: %f Right: %f", avgLaserDist[2],avgLaserDist[1],avgLaserDist[0]);
     }
     else {
         for (uint32_t laser_idx = 0; laser_idx < nLasers; ++laser_idx) {
@@ -136,22 +143,23 @@ void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub
 //    {
 //        vel.angular.z = abs(DEG2RAD(angular_speed));
 //    }
+    int arraySize = myints.size()
     ros::Rate loop_rate(10);
     double current_angle = 0.0;
     double initial_time = ros::WallTime::now().toSec();
-   while(current_angle < DEG2RAD(desired_angle))
-    {
-       //std::cout<<current_angle<<std::endl;
-       ROS_INFO("current angle: %f", current_angle);
-       vel_pub.publish(vel);
-       double current_time = ros::WallTime::now().toSec();
-       current_angle = angular_speed * (current_time - initial_time);
-       ros::spinOnce();
-       loop_rate.sleep();
-       std::cout << "inside the while" << std::endl;
-    }
-    vel.angular.z = 0.0;
-    vel_pub.publish(vel);
+    while(current_angle < DEG2RAD(desired_angle))
+        {
+        //std::cout<<current_angle<<std::endl;
+        ROS_INFO("current angle: %f", current_angle);
+        vel_pub.publish(vel);
+        double current_time = ros::WallTime::now().toSec();
+        current_angle = angular_speed * (current_time - initial_time);
+        ros::spinOnce();
+        loop_rate.sleep();
+        std::cout << "inside the while" << std::endl;
+        }
+        vel.angular.z = 0.0;
+        vel_pub.publish(vel);
 }
 
 void move (double linear_speed, ros::Publisher &vel_pub)
