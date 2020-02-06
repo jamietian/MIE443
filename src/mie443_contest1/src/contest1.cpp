@@ -64,7 +64,7 @@ void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
         //         minLaserDist[index_multiple] = std::min(minLaserDist[index_multiple], msg->ranges[laser_idx]);
         //     }
         // }
-        ROS_INFO("Left: %f, Center: %f Right: %f", minLaserDist[2],minLaserDist[1],minLaserDist[0]);
+        ROS_INFO("Left: %f, Center: %f Right: %f, %f", minLaserDist[2],minLaserDist[1],minLaserDist[0], msg->ranges[0]);
     }
     else {
         for (uint32_t laser_idx = 0; laser_idx < nLasers; ++laser_idx) {
@@ -108,7 +108,7 @@ void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub
     vel.linear.z = 0.0;
     vel.angular.x = 0.0;
     vel.angular.y = 0.0;
-    vel.angular.z = angular_speed;
+    vel.angular.z = -angular_speed;
 
     ros::Rate loop_rate(10);
     double current_angle = 0.0;
@@ -131,29 +131,32 @@ void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub
 void moveSpeed(double linear_speed, ros::Publisher &vel_pub)
 {
    geometry_msgs::Twist vel;
-
-   vel.angular.x = 0.0;
-   vel.angular.y = 0.0;
-   vel.angular.z = 0.0;
-   vel.linear.y = 0.0;
-   vel.linear.z = 0.0;
+//    vel.angular.x = 0.0;
+//    vel.angular.y = 0.0;
+//    vel.angular.z = 0.0;
+//    vel.linear.y = 0.0;
+//    vel.linear.z = 0.0;
    vel.linear.x = linear_speed;
    vel_pub.publish(vel);
 }
 
-void checkBumperPressed(uint8_t bumper[3],ros::Publisher &vel_pub)
+bool checkBumperPressed(uint8_t bumper[3],ros::Publisher &vel_pub)
 {
 	if(bumper[1]==1){
         moveDist(-0.25,vel_pub);
+        return true;
 	}
 	else if(bumper[0]==1){
 		moveDist(-0.25,vel_pub);
         rotate(1,30,vel_pub);
+        return true;
 	}
 	else if(bumper[2]==1){
         moveDist(-0.25,vel_pub);
         rotate(1,30,vel_pub);
+        return true;
 	}
+    else{return false;}
 }
 
 int main(int argc, char **argv)
@@ -181,27 +184,10 @@ int main(int argc, char **argv)
     int asdf = 1;
     while(ros::ok() && secondsElapsed <= 480) {
         ros::spinOnce();
-        //fill with your code
-        
-        // bool any_bumper_pressed = false;
-        // for (uint32_t b_idx = 0; b_idx < N_BUMPER; ++b_idx) {
-        //     any_bumper_pressed |= (bumper[b_idx] == kobuki_msgs::BumperEvent::PRESSED);
-        // }
 
-        // ROS_INFO("Postion: (%f, %f) Orientation: %f degrees Range: %f", posX, posY, RAD2DEG(yaw), minLaserDist[1]);
-		checkBumperPressed(bumper,vel_pub);
-        if (minLaserDist[1] < 1){
-            moveSpeed(0.1, vel_pub);
-            if (minLaserDist[0]<0.8){
-                rotate(1, -30, vel_pub);
-            }
-            else {
-                rotate(1, 30, vel_pub);
-            }
+        if (!checkBumperPressed(bumper,vel_pub)){
+            //write code here
         }
-        else if (minLaserDist[1] >= 1) {
-			moveSpeed(0.25, vel_pub);
-		}
 
         // The last thing to do is to update the timer.
         secondsElapsed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now()-start).count();
