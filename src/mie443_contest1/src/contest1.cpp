@@ -72,6 +72,9 @@ void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
                 // if (isinf(minLaserDist[j])){
                 //     minLaserDist[j] = 0.0;
                 // } 
+                if (minLaserDist[j] == std::numeric_limits<float>::infinity()){
+                    minLaserDist[j] = 0.0;
+                }
                 local_avg += minLaserDist[j];
             }
 
