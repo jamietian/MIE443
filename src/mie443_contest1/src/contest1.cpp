@@ -24,7 +24,9 @@ float posX = 0.0, posY = 0.0, yaw = 0.0;
 geometry_msgs::Twist vel;
 
 
-float minLaserDist[11] = {std::numeric_limits<float>::infinity()};
+float minLaserDist[12] = {};
+float avgLaserDist[3] = {};
+int32_t nLasers=0, desiredNLasers=0, desiredAngle=25, edgeRange= 100;
 
 int32_t nLasers=0, desiredNLasers=0, desiredAngle=10, edgeRange= 100;
 
@@ -50,44 +52,55 @@ void bumperCallback(const kobuki_msgs::BumperEvent::ConstPtr& msg)
 
 void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 {
-    nLasers = (msg->angle_max - msg->angle_min) / msg->angle_increment;
-    desiredNLasers = desiredAngle*M_PI / (180*msg->angle_increment);
-    //ROS_INFO("Size of laser scan array: %i and size of offset: %i, max min angle %f, %f", nLasers, desiredNLasers, msg->angle_max, msg->angle_min);
-    if (desiredAngle * M_PI / 180 < msg->angle_max && -desiredAngle * M_PI / 180 > msg->angle_min) {
-		// //right range detection
-		// for (uint32_t laser_idx = 0; laser_idx < edgeRange; ++laser_idx){
-        //     minLaserDist[0] = std::min(minLaserDist[0], msg->ranges[laser_idx]);
-        // }
-		// //center range detection
-		// for (uint32_t laser_idx = nLasers / 2 - desiredNLasers; laser_idx < nLasers / 2 + desiredNLasers; ++laser_idx){
-        //     minLaserDist[1] = std::min(minLaserDist[1], msg->ranges[laser_idx]);
-        // }
-		// //left range detection
-		// for (uint32_t laser_idx = 639; laser_idx > 639-edgeRange; --laser_idx){
-        //     minLaserDist[2] = std::min(minLaserDist[2], msg->ranges[laser_idx]);
-        // }
+    // define laser and fill with float
+	// minLaserDist[12] = {};
+    std::fill(minLaserDist, minLaserDist+nLasers, std::numeric_limits<float>::infinity());
 
-        uint32_t start_index = nLasers/2 - desiredNLasers;
-        uint32_t increment_size = 2*desiredNLasers/3;
+    // define average array
+    // avgLaserDist[3] = {};
+    std::fill(avgLaserDist, avgLaserDist+nLasers, std::numeric_limits<float>::infinity());
 
-        for (uint32_t index_multiple = 0; index_multiple < 3; index_multiple++){
-            uint32_t local_start_index = start_index + increment_size*(index_multiple);
-            uint32_t local_end_index = start_index + increment_size*(index_multiple+1);
-            for (uint32_t laser_idx = local_start_index; laser_idx < local_end_index; laser_idx++){
-                minLaserDist[index_multiple] = std::min(minLaserDist[index_multiple], msg->ranges[laser_idx]);
+    // nLasers = (msg->angle_max - msg->angle_min) / msg->angle_increment;
+    // desiredNLasers = desiredAngle*M_PI / (180*msg->angle_increment);
+	//ROS_INFO("Size of laser scan array: %i and size of offset: %i", nLasers, desiredNLasers);
+	
+	nLasers = 639;
+	desiredNLasers = 639;
+	uint32_t start_index = nLasers/2 - desiredNLasers;
+    uint32_t increment_size = 2*desiredNLasers/12;
+
+    for (uint32_t index_multiple = 0; index_multiple < 12; index_multiple++){
+        uint32_t local_start_index = start_index + increment_size*(index_multiple);
+        uint32_t local_end_index = start_index + increment_size*(index_multiple+1);
+
+        for (uint32_t laser_idx = local_start_index; laser_idx < local_end_index; laser_idx++){
+            minLaserDist[index_multiple] = std::min(minLaserDist[index_multiple], msg->ranges[laser_idx]);
+        }
+    }
+
+    int idx_start = 0;
+    // now take the average per each 3 segment
+    for (uint32_t i = 0; i < 3; i++){
+        idx_start = idx_start + i*3;
+        uint32_t idx_end = idx_start + (i+1)*3;
+        float local_avg = 0.0;
+
+        for (uint32_t j = idx_start; idx_end; j++){
+            // infinity filtering
+            // if (isinf(minLaserDist[j])){
+            //     minLaserDist[j] = 0.0;
+            // } 
+            if (minLaserDist[j] == std::numeric_limits<float>::infinity()){ // infinity filtering new
+                minLaserDist[j] = 0.0;
             }
+            local_avg += minLaserDist[j];
         }
-        ROS_INFO("Left: %f, Center: %f Right: %f, %f", minLaserDist[2],minLaserDist[1],minLaserDist[0], msg->ranges[0]);
-		left_d = minLaserDist[2];
-		right_d = minLaserDist[1];
-		center_d = minLaserDist[0];
+
+        avgLaserDist[i] = (float) local_avg / (float) 4;
     }
-    else {
-        for (uint32_t laser_idx = 0; laser_idx < nLasers; ++laser_idx) {
-            minLaserDist[1] = std::min(minLaserDist[1], msg->ranges[laser_idx]);
-        }
-        //ROS_INFO("(%f, %f) Orientation: %f rad or %f degrees.", posX, posY, yaw, RAD2DEG(yaw));
-    }
+    ROS_INFO("AVG Left: %f, Center: %f Right: %f", avgLaserDist[2],avgLaserDist[1],avgLaserDist[0]);
+
+
 }
 
 void odomCallback(const nav_msgs::Odometry::ConstPtr&msg)
@@ -420,17 +433,19 @@ int main(int argc, char **argv)
 					rotate(0.2, 180.0, vel_pub);
 					ros::spinOnce();
 				}
+				
+				corner_counter = wallFollow(turn_dir,vel_pub);
+				
+				// while (cycle_time <= cycle_time_limit || corner_counter < 3) {
+				// 	cycle_time = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - start_cycle).count();
 
-				while (cycle_time <= cycle_time_limit || corner_counter < 3) {
-					cycle_time = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - start_cycle).count();
 
-
-					corner_counter = wallFollow(turn_dir,vel_pub);
-					ros::spinOnce();
-					checkBumperPressed(bumper,vel_pub);
-					if (cycle_time > 15 && corner_counter < 1)
-						break;
-				}
+				// 	corner_counter = wallFollow(turn_dir,vel_pub);
+				// 	ros::spinOnce();
+				// 	checkBumperPressed(bumper,vel_pub);
+				// 	if (cycle_time > 15 && corner_counter < 1)
+				// 		break;
+				// }
 
 				double deg = rand() % 61 + 60;
 				if (turn_dir) {
