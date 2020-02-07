@@ -14,7 +14,7 @@ roslaunch mie443_contest1 gmapping.launch\
 rosrun mie443_contest1 contest1
 
 
-mapping\
+#mapping\
 roslaunchturtlebot_rviz_launchersview_navigation.launch
 save map\
 rosrunmap_servermap_saver–f your_map_name\
