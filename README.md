@@ -5,10 +5,10 @@ hello
 cd ~/catkin_ws\
 catkin_make\
 #Terminal 1\
-# below starts the UI\
+#below starts the UI\
 roslaunch mie443_stage turtlebot_in_stage_contest1.launch\
-# below line simulates laser scanning\
-rosrun gmapping slam something
+#below line simulates laser scanning\
+rosrun gmapping slam_gmapping\
 #Terminal 2\
 roslaunch turtlebot_bringup minimal.launch\
 #Terminal 3\
