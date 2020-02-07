@@ -1,7 +1,3 @@
-/*
-MIE443 Mechatronics Design
-Team 18
-*/
 #define N_BUMPER (3)
 #define RAD2DEG(rad) ((rad) * 180. / M_PI)
 #define DEG2RAD(deg) ((deg) * M_PI / 180.)
@@ -20,36 +16,44 @@ Team 18
 #include <nav_msgs/Odometry.h>
 #include <tf/transform_datatypes.h>
 
-float angular = 0.0;
-float linear = 0.0;
+
+//odomotry parameters
 float posX = 0.0, posY = 0.0, yaw = 0.0;
 
-//ros::Publisher vel_pub;
-geometry_msgs::Twist vel;
+//bumper parameters
+uint8_t bumper[3] = { kobuki_msgs::BumperEvent::RELEASED, kobuki_msgs::BumperEvent::RELEASED, kobuki_msgs::BumperEvent::RELEASED };
 
-
+//laser parameters
 float minLaserDist[11] = {};
-float avgLaserDist[3] = {};
-int32_t nLasers=0, desiredNLasers=0, desiredAngle=25, edgeRange= 100;
-
+float avgLaserDist[3] = {}; 
+int32_t nLasers = 0, desiredNLasers = 0, desiredAngle = 10, edgeRange = 100;
 float left_d, right_d, center_d;
-float avg_left, avg_right, avg_center;
-float reg_speed = 0.25;
-float turn_speed = 1;
-float ang_speed = 1;
-float scanAng_speed = 0.5;
+float avg_left, avg_center, avg_right;
 
+//speed parameters
+geometry_msgs::Twist vel;
+float angular = 0.0;
+float linear = 0.0;
+float reg_speed = 0.2; //>1
+float app_speed1 = 0.2 * 0.7; //0.7<x<=1
+float app_speed2 = 0.2 * 0.5; // 0.55<x<=0.7
+float app_speed3 = 0.2 * 0.3; //x<0.55 && x!=0
+float ang_speed = 0.5; //turn and go
+float turn_speed = 0.3; //turn
+
+//obstacle distance
+float f_safeDist = 1.0;
+float f_limit = 0.7;
+float emergency = 0.55;
+float side_limit = 0.8;
+
+//wall following parameters
 int corner_counter = 0;
-bool turned = false; 
+bool turned = false;
+float side_dist_old = 1000; //initial large number
 
-//test obstacle distance
-float wf_dis = 0.9;
-float f_limit = 0.9; 
-float l_limit = 1.5; 
+bool wallFound = false, aligned = false, dir_decided = false;
 
-uint64_t spin_cycle = 0;
-
-uint8_t bumper[3] = {kobuki_msgs::BumperEvent::RELEASED, kobuki_msgs::BumperEvent::RELEASED, kobuki_msgs::BumperEvent::RELEASED};
 
 void bumperCallback(const kobuki_msgs::BumperEvent::ConstPtr& msg)
 {
@@ -130,54 +134,47 @@ void odomCallback(const nav_msgs::Odometry::ConstPtr&msg)
 
 void moveDist(float targdist,ros::Publisher &vel_pub) 
 {
-    geometry_msgs::Twist vel;
     ros::Rate loop_rate(10);
     float prev_posX, prev_posY, distMoved = 0.0;
 	prev_posX = posX;
 	prev_posY = posY;
-	if (targdist>0){
-		while(distMoved<targdist){
+	if (targdist > 0) {
+		while (distMoved < targdist) {
 			//ROS_INFO("Moving : %f", distMoved);
-			distMoved = sqrt(pow((posX - prev_posX),2)+pow((posY - prev_posY),2));
+			distMoved = sqrt(pow((posX - prev_posX), 2) + pow((posY - prev_posY), 2));
 			vel.angular.z = 0;
-			vel.linear.x = 0.2;
+			vel.linear.x = reg_speed;
 			vel_pub.publish(vel);
 			ros::spinOnce();
 			loop_rate.sleep();
 		}
 	}
-	else if (targdist<0){
-		while(distMoved<targdist){
+	else if (targdist < 0) {
+		while (distMoved < targdist) {
 			//ROS_INFO("Moving : %f", distMoved);
-			distMoved = sqrt(pow((posX - prev_posX),2)+pow((posY - prev_posY),2));
+			distMoved = sqrt(pow((posX - prev_posX), 2) + pow((posY - prev_posY), 2));
 			vel.angular.z = 0;
-			vel.linear.x = -0.15;
+			vel.linear.x = -app_speed1;
 			vel_pub.publish(vel);
 			ros::spinOnce();
 			loop_rate.sleep();
 		}
 	}
-
 }
 
 void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub)
 {
-    geometry_msgs::Twist vel;
     vel.linear.x = 0.0;
-    vel.linear.y = 0.0;
-    vel.linear.z = 0.0;
-    vel.angular.x = 0.0;
-    vel.angular.y = 0.0;
-    vel.angular.z = angular_speed;
+    vel.angular.z = -angular_speed;
 
-	if (angular_speed < 0){ // fix negative sign of while loop
-		angular_speed = - angular_speed;
+	if (angular_speed < 0) { // fix negative sign of while loop
+		angular_speed = -angular_speed;
 	}
 
     ros::Rate loop_rate(10);
     double current_angle = 0.0;
     double initial_time = ros::WallTime::now().toSec();
-	std::cout << "inside the while" << std::endl;
+	std::cout << "inside the rotete while loop" << std::endl;
     while(current_angle < DEG2RAD(desired_angle))
     {
        //std::cout<<current_angle<<std::endl;
@@ -185,41 +182,28 @@ void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub
        vel_pub.publish(vel);
        double current_time = ros::WallTime::now().toSec();
        current_angle = angular_speed * (current_time - initial_time);
-      //ros::spinOnce();
-       loop_rate.sleep();
-       
+       loop_rate.sleep(); 
     }
-	std::cout << "out the while" << std::endl;
+	std::cout << "out the rotate while loop" << std::endl;
     vel.angular.z = 0.0;
     vel_pub.publish(vel);
 }
 
-void moveSpeed(double linear_speed, ros::Publisher &vel_pub)
-{
-   geometry_msgs::Twist vel;
-//    vel.angular.x = 0.0;
-//    vel.angular.y = 0.0;
-//    vel.angular.z = 0.0;
-//    vel.linear.y = 0.0;
-//    vel.linear.z = 0.0;
-   vel.linear.x = linear_speed;
-   vel_pub.publish(vel);
-}
 
 bool checkBumperPressed(uint8_t bumper[3],ros::Publisher &vel_pub)
 {
-	float backDist = -0.05, fwdDist = 0.01, rotAngle = 30.0;
+	float backDist = -0.05, fwdDist = 0.01, rotAngle = 30.0, rotSpeed = ang_speed;
 	if(bumper[0]==1){ //check left
 		ROS_INFO("Left bumper!\n");
         moveDist(backDist, vel_pub);
-        rotate(-1.0,rotAngle, vel_pub);
+        rotate(-rotSpeed,rotAngle, vel_pub);
 		moveDist(fwdDist, vel_pub);
         return true;
 	}
 	else if(bumper[2]==1){ //check right
 		ROS_INFO("Right bumper!\n");
         moveDist(backDist, vel_pub);
-        rotate(1.0, rotAngle, vel_pub);
+        rotate(rotSpeed, rotAngle, vel_pub);
 		moveDist(fwdDist, vel_pub);
         return true;
 	}
@@ -243,6 +227,7 @@ bool checkBumperPressed(uint8_t bumper[3],ros::Publisher &vel_pub)
 	}
 }
 
+//type of movement
 typedef enum _ROBOT_MOVEMENT {
 	STOP = 0,
 	FORWARD,
@@ -253,118 +238,129 @@ typedef enum _ROBOT_MOVEMENT {
 	GO_LEFT
 } ROBOT_MOVEMENT;
 
-bool robot_move(const ROBOT_MOVEMENT move_type,ros::Publisher &vel_pub) {
+void robot_move(const ROBOT_MOVEMENT move_type, float speed, ros::Publisher &vel_pub, float go_turn = ang_speed) {
 	
 	if (move_type == STOP) {
-		ROS_INFO("[ROBOT] STOP! \n");
-
+		//ROS_INFO("[ROBOT] STOP! \n");
 		vel.linear.x = 0.0;
 		vel.angular.z = 0.0;
 	}
 
 	else if (move_type == FORWARD) {
-		ROS_INFO("[ROBOT] FORWARD! \n");
-
-		vel.linear.x = reg_speed;
+		//ROS_INFO("[ROBOT] FORWARD! \n");
+		vel.linear.x = speed;
 		vel.angular.z = 0.0;
 	}
 
 	else if (move_type == BACKWARD) {
-		ROS_INFO("[ROBOT] BACKWARD! \n");
-
-		vel.linear.x = -reg_speed;
-		vel.angular.z = 0.0 ;
+		//ROS_INFO("[ROBOT] BACKWARD! \n");
+		vel.linear.x = -0.8*speed;
+		vel.angular.z = 0.0;
 	}
 
 	else if (move_type == TURN_LEFT) {
-		ROS_INFO("[ROBOT] TURN LEFT! \n"); 
-
+		//ROS_INFO("[ROBOT] TURN LEFT! \n");
 		vel.linear.x = 0.0;
 		vel.angular.z = turn_speed;
 	}
 
 	else if (move_type == TURN_RIGHT) {
-		ROS_INFO("[ROBOT] TURN RIGHT! \n");
-
+		//ROS_INFO("[ROBOT] TURN RIGHT! \n");
 		vel.linear.x = 0.0;
 		vel.angular.z = -turn_speed;
 	}
 
 	else if (move_type == GO_LEFT) {
-		ROS_INFO("[ROBOT] GO LEFT! \n");
-
-		vel.linear.x = reg_speed;
-		vel.angular.z = ang_speed;
+		//ROS_INFO("[ROBOT] GO LEFT! \n");
+		vel.linear.x = speed;
+		vel.angular.z = go_turn;
 	}
 
 	else if (move_type == GO_RIGHT) {
-		ROS_INFO("[ROBOT] GO RIGHT! \n");
-
-		vel.linear.x = reg_speed;
-		vel.angular.z = -ang_speed;
+		//ROS_INFO("[ROBOT] GO RIGHT! \n");
+		vel.linear.x = speed;
+		vel.angular.z = -go_turn;
 	}
 	else {
 		ROS_INFO("[ROBOT_MOVE] WRONG! \n");
-		return false;
 	}
 
 	vel_pub.publish(vel);
 	usleep(10);
-	return true;
 }
 
-int state_Check() {// needs refinement
-	// 0 = find wall, 1 = align wall, 2 = Follow wall
-	if (center_d < f_limit && left_d > l_limit&& right_d < l_limit) {
+int state_Check() {
+	/*
+	state 0: empty space <- center, left, right all greater than limit
+	state 1: wall found <- obstacle in front 
+	state 2: follow wall
+	*/
+	if (center_d < f_limit){ 
 		return 1;
 	}
 
-	else if (center_d < f_limit && left_d < l_limit && right_d > l_limit) {
-		return 1;
-	}
-
-	else if (center_d < f_limit && left_d > l_limit&& right_d > l_limit) {
-		return 1;
-	}
-
-	else if (center_d < f_limit && left_d < l_limit && right_d < l_limit) {
-		return 1;
-	}
-
-	else if (center_d > f_limit&& left_d < l_limit && right_d > l_limit) {
+	else if (center_d > f_limit && (left_d < side_limit || right_d < side_limit)) {
 		return 2;
 	}
 
-	else if (center_d > f_limit&& left_d > l_limit&& right_d < l_limit) {
-		return 2;
-	}
-
-	else if (center_d > f_limit&& left_d < l_limit && right_d < l_limit) {
-		return 2;
-	}
-	else {
+	else { //center_d > f_limit && left_d > l_limit && right_d > l_limit
 		return 0;
 	}
 }
 
-//wall_dir = 0 -> rightwall, wall_dir = 1 -> leftwall
-int wallFollow(bool wall_dir,ros::Publisher &vel_pub) {
-	geometry_msgs::Twist vel;
+
+float forward_speed_check(float center_d, float right_d, float left_d) {
+	float linSpeed;
+	if (left_d < emergency || right_d < emergency) {
+		linSpeed = 0.0;
+	}
+	else {
+		if (f_limit < center_d <= f_safeDist) //0.7<x<=1
+			linSpeed = app_speed1;
+		else if (emergency < center_d <= f_limit) //0.55 < x <= 0.7
+			linSpeed = app_speed2;
+		else if (emergency < center_d && center_d != 0) //x < 0.55 && x != 0
+			linSpeed = app_speed3;
+		else if (center_d == 0)
+			linSpeed = 0.0;
+		else
+			linSpeed = reg_speed;
+	}
+	return linSpeed;
+}
+
+void wallFollow(bool wall_dir,ros::Publisher &vel_pub) {
+	
 	float side;
 
-	if (wall_dir) {//left
-		
+	if (wall_dir) //left	
 		side = left_d;
-	}
-	else {//right
+	else //right
 		side = right_d;
+
+	if (side - side_dist_old > 0.1) {
+		if(wall_dir) 
+			robot_move(GO_LEFT, app_speed1, vel_pub, 0.3*ang_speed);
+		else
+			robot_move(GO_RIGHT, app_speed1, vel_pub, 0.3 * ang_speed);
+	}
+	else if (side_dist_old - side > 0.1) {
+		if (wall_dir)
+			robot_move(GO_RIGHT, app_speed1, vel_pub, 0.3 * ang_speed);
+		else
+			robot_move(GO_LEFT, app_speed1, vel_pub, 0.3 * ang_speed);
+	}
+	else
+	{
+		robot_move(FORWARD, reg_speed, vel_pub);
 	}
 
+	
+	/*
 	if (center_d >= wf_dis && side < wf_dis) {
 		robot_move(FORWARD,vel_pub);
 		turned = false;
 	}
-
 	else if (center_d < wf_dis && side < wf_dis) {
 		if (!turned) {
 			corner_counter++;
@@ -386,84 +382,120 @@ int wallFollow(bool wall_dir,ros::Publisher &vel_pub) {
 			robot_move(GO_RIGHT,vel_pub);
 		}
 	}
-	return corner_counter;
+	*/
 }
 
-void checkNear(){
-	if (avg_left < 0.65 || avg_center < 0.65 || avg_right < 0.65){
-		reg_speed = 0.1;
-		turn_speed = 0.8;
-		ang_speed = 0.25;
+
+void action(int state,ros::Publisher &vel_pub) {
+	float speed;
+	int turn_dir;
+
+	//find a wall
+	if (state == 0) {
+		if (wallFound) { //going to find a new wall
+			dir_decided = false;
+			wallFound = false;
+		}
+
+		if (!dir_decided) {
+			turn_dir = rand() % 2;
+		}
+
+		speed = forward_speed_check(center_d, right_d, left_d);
+		ROS_INFO("go & find wall\n");
+		if (turn_dir) 
+			robot_move(GO_LEFT, speed, vel_pub);
+		else
+			robot_move(GO_RIGHT, speed, vel_pub);
+		
 	}
-	else{
-		reg_speed = 0.25;
-		turn_speed = 1;
-		ang_speed = 0.5;
+
+	//align
+	else if (state == 1) {
+		wallFound = true;
+		ROS_INFO("align \n");
+		if (turn_dir) 
+			robot_move(TURN_RIGHT, 0.0, vel_pub);
+		else 
+			robot_move(TURN_LEFT, 0.0, vel_pub);	
+	}
+	
+	//follow wall
+	else { //state=2
+		wallFound = true;
+		ROS_INFO("follow \n");
+
+		wallFollow(turn_dir, vel_pub);
 	}
 }
+//wall_dir = 0 -> rightwall, wall_dir = 1 -> leftwall
+
 
 
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "image_listener");
     ros::NodeHandle nh;
-
     ros::Subscriber bumper_sub = nh.subscribe("mobile_base/events/bumper", 10, &bumperCallback);
     ros::Subscriber laser_sub = nh.subscribe("scan", 10, &laserCallback);
 	ros::Subscriber odom = nh.subscribe("odom", 1, &odomCallback);
-
     ros::Publisher vel_pub = nh.advertise<geometry_msgs::Twist>("cmd_vel_mux/input/teleop", 1);
 
     ros::Rate loop_rate(10);
-
-    geometry_msgs::Twist vel;
 
     // contest count down timer
     std::chrono::time_point<std::chrono::system_clock> start;
     start = std::chrono::system_clock::now();
     uint64_t secondsElapsed = 0;
 
-    
+	int current_state;
+	float current_speed;
+
+    //main loop
     while(ros::ok() && secondsElapsed <= 480) {
         ros::spinOnce();
-		checkNear();
 
-        if (!checkBumperPressed(bumper,vel_pub)){
+        if (!checkBumperPressed(bumper,vel_pub)){		
+			current_state = state_Check();
+			action(current_state,vel_pub);
 			
-			int state = state_Check();
-			ROS_INFO("Robot State: %i\n", state);
+			// else {
+			// 	ROS_INFO("follow wall\n");
+			// 	std::chrono::time_point<std::chrono::system_clock> start_cycle;
+			// 	start_cycle = std::chrono::system_clock::now();
+			// 	uint64_t cycle_time_limit = random() % 10 + 25;
+			// 	uint64_t cycle_time = 0;
 
-			// if (spin_cycle >= spin_30){
-			// 	rotate(0.5, 360, vel_pub);
-			// 	spint_cycle
+			// 	int turn_dir;
+
+			// 	turn_dir = rand() % 2;
+					
+			// 	if (turn_dir) {
+			// 		ROS_INFO("rotate 180\n");
+			// 		rotate(0.2, 180.0, vel_pub);
+			// 		ros::spinOnce();
+			// 	}
+
+			// 	while (cycle_time <= cycle_time_limit || corner_counter < 3) {
+			// 		cycle_time = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - start_cycle).count();
+
+			// 		corner_counter = wallFollow(turn_dir,vel_pub);
+			// 		ros::spinOnce();
+
+			// 		if (cycle_time > 15 && corner_counter < 1)
+			// 			break;
+			// 	}
+
+			// 	double deg = rand() % 61 + 60;
+			// 	if (turn_dir) {
+			// 		ROS_INFO("random turn right\n");
+			// 		rotate(0.2, -deg, vel_pub);
+			// 	}
+			// 	else {
+			// 		ROS_INFO("random turn left\n");
+			// 		rotate(0.2, deg, vel_pub);
+			// 	}
 			// }
-
-			//find a wall
-			if (state == 0) {
-				ROS_INFO("Find a wall");
-				robot_move(FORWARD,vel_pub);
-			}
-
-			//align
-			else if (state == 1) {
-				ROS_INFO("Align wall");
-				robot_move(TURN_LEFT,vel_pub);
-			}
-
-			//follow wall
-			else if (state  == 2){
-				ROS_INFO("Follow wall");
-				std::chrono::time_point<std::chrono::system_clock> start_cycle;
-				start_cycle = std::chrono::system_clock::now();
-				uint64_t cycle_time_limit = random() % 10 + 25;
-				uint64_t cycle_time = 0;
-
-				int turn_dir;
-
-				turn_dir = rand() % 2;
-				corner_counter = wallFollow(turn_dir,vel_pub);
-				
-			}
         }
 
         // The last thing to do is to update the timer.
