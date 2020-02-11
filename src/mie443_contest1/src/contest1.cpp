@@ -565,15 +565,25 @@ int main(int argc, char **argv)
         ros::spinOnce();
 
         // get bumperState
-        bumperState = getBumperState(bumper, vel_pub);
+        bumperNode bumperState = getBumperState(bumper, vel_pub);
 
         // if bumper is not activated
         if (!bumperState.activated){
-             if ((ros::WallTime::now() - cycle_start).toSec() > cycle && openspace){
-                 ROS_INFO("360 check");
-                 rotate(-turn_speed,400, vel_pub);
-                 cycle_start = ros::WallTime::now();
-             }
+			if ((ros::WallTime::now() - cycle_start).toSec() > cycle && openspace){
+				ROS_INFO("360 check");
+				rotate(-turn_speed,400, vel_pub);
+				cycle_start = ros::WallTime::now();
+			}
+
+			ROS_INFO("right laser %f", avgLaserDist[0]);
+
+			// right
+			if (avgLaserDist[0] < 0.50) {
+				// negative is CCW
+				ROS_INFO("!!! backout, and rotate");
+				// moveDist(0.08, vel_pub);
+				rotate(-turn_speed*1.5, 2, vel_pub);
+			}
 
 			// first it checks loop to see if you are within the loop admissible stage
 			// openSpace will be triggerred if foundLoop is True
