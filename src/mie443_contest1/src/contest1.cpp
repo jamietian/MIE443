@@ -3,6 +3,7 @@
 #define DEG2RAD(deg) ((deg) * M_PI / 180.)
 
 #include <ros/console.h>
+#include <string>
 #include "ros/ros.h"
 #include <geometry_msgs/Twist.h>
 #include <kobuki_msgs/BumperEvent.h>
@@ -20,7 +21,7 @@ class bumperNode
 { 
     public:
         bool activated;
-        string activated_side;
+        std::string activated_side;
 }; 
 
 //odomotry parameters
@@ -257,7 +258,7 @@ void moveDist(float targdist,ros::Publisher &vel_pub)
 			loop_rate.sleep();
 		}
 	}
-    
+
 	else if (targdist < 0) {
         targdist =-targdist;
 		while (distMoved < targdist) {
@@ -314,9 +315,6 @@ bumperNode getBumperState(uint8_t bumper[3],ros::Publisher &vel_pub)
 
     // create bumper node, which will store bumper state
     bumperNode bnode;
-
-    // static variable used in bumper checking process
-	float backDist = -0.1, fwdDist = 0.15, rotAngle = 30.0, rotSpeed = ang_speed;
 
 	if(bumper[0]==1){ //check left
 		ROS_INFO("Left bumper!\n");
@@ -520,20 +518,22 @@ void action(int state,ros::Publisher &vel_pub) {
 }
 
 void bumperAction(bumperNode bumperState){
-
-    if (bumperState.activated_side == "left") {
+    // static variable used in bumper checking process
+	float backDist = -0.1, fwdDist = 0.15, rotAngle = 30.0, rotSpeed = ang_speed;
+    
+    if ((bumperState.activated_side.compare("left")) == 0) {
         moveDist(backDist, vel_pub);
         rotate(rotSpeed,rotAngle, vel_pub);
 		moveDist(fwdDist, vel_pub);
     }
 
-    else if (bumperState.activated_side == "right") {
+    else if ((bumperState.activated_side.compare("right")) == 0) {
         moveDist(backDist, vel_pub);
         rotate(-rotSpeed, rotAngle, vel_pub);
 		moveDist(fwdDist, vel_pub);
     }
 
-    else if (bumperState.activated_side == "center") {
+    else if ((bumperState.activated_side.compare("center")) == 0) {
         moveDist(backDist, vel_pub);
     }
 
