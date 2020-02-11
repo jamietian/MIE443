@@ -48,7 +48,7 @@ float turn_speed = 0.5; //turn
 
 //obstacle distance
 float f_safeDist = 1.0;
-float f_limit = 0.7;
+float f_limit = 0.7; //0.7
 float emergency = 0.55;
 float side_limit = 0.9;
 float side_limint_low = 0.6;
@@ -57,6 +57,7 @@ float side_limint_low = 0.6;
 int corner_counter = 0;
 bool turned = false;
 float side_dist_old = 1000; //initial large number
+bool updateDiff = true;
 
 bool wallFound = false, aligned = false, dir_decided = false, newOB = false, finishLoop = true, openspace = true;
 
@@ -183,7 +184,7 @@ void robot_move(const ROBOT_MOVEMENT move_type, float speed, ros::Publisher &vel
 	else if (move_type == TURN_RIGHT) {
 		//ROS_INFO("[ROBOT] TURN RIGHT! \n");
 		vel.linear.x = 0.0;
-		vel.angular.z = -go_turn;
+		vel.angular.z = -turn_speed;
 	}
 
 	else if (move_type == GO_LEFT) {
@@ -235,28 +236,27 @@ void moveDist(float targdist,ros::Publisher &vel_pub)
 	prev_posY = posY;
 	if (targdist > 0) {
 		while (distMoved < targdist) {
-			//ROS_INFO("Moving : %f", distMoved);			
+			//ROS_INFO("Moving : %f", distMoved);
+			if (bumper[0] == 1 || bumper[1]==1 || bumper[2]==1){
+				robot_move(BACKWARD,app_speed1, vel_pub);
+				return;
+			}
 			distMoved = sqrt(pow((posX - prev_posX), 2) + pow((posY - prev_posY), 2));
 			vel.angular.z = 0;
 			vel.linear.x = reg_speed;
 			vel_pub.publish(vel);
 			ros::spinOnce();
 			loop_rate.sleep();
-
-			if (bumper[0] == 1 || bumper[1] == 1 || bumper[2] == 1) {
-				robot_move(BACKWARD, app_speed1, vel_pub);
-				return;
-			}		
 		}
 	}
 	else if (targdist < 0) {
         targdist =-targdist;
 		while (distMoved < targdist) {
 			//ROS_INFO("Moving : %f", distMoved);
-			/*if (bumper[0] == 1 || bumper[1]==1 || bumper[2]==1){
-				robot_move(BACKWARD,app_speed1, vel_pub);
-				return;
-			}*/
+			// if (bumper[0] == 1 || bumper[1]==1 || bumper[2]==1){
+			// 	robot_move(BACKWARD,app_speed1, vel_pub);
+			// 	return;
+			// }
 			distMoved = sqrt(pow((posX - prev_posX), 2) + pow((posY - prev_posY), 2));
 			vel.angular.z = 0;
 			vel.linear.x = -app_speed1;
@@ -314,7 +314,7 @@ bool checkBumperPressed(uint8_t bumper[3],ros::Publisher &vel_pub)
 	}
 	else if(bumper[1]==1){//check center
 		ROS_INFO("Center bumper!\n");
-        moveDist(backDist, vel_pub);
+        moveDist(-0.1, vel_pub);
 		if(bumper[0]==1){ //check left
 			rotate(rotSpeed,rotAngle, vel_pub);
 			moveDist(fwdDist, vel_pub);
@@ -348,11 +348,13 @@ int state_Check() {
 	
 	else {
 		// if (center_d < f_limit){ 
-		if (minLaserDist[5] < f_limit){ 
+		if (center_d < f_limit){ 
+			
 			return 1;
 		}
 
 		else if (center_d > f_limit && (side_limint_low<left_d < side_limit || side_limint_low<right_d < side_limit)) {
+			
 			return 2;
 		}
 
@@ -409,32 +411,39 @@ void wallFollow(bool wall_dir,ros::Publisher &vel_pub) {
 	}
 
 	float side;
+	
 
 	if (wall_dir) //left	
 		side = left_d;
 	else //right
 		side = right_d;
 
-	if (side - side_dist_old > 0.08) {
+	if ((side - side_dist_old) > 0.1) {
         ROS_INFO("moving away! adjust");
 		if(wall_dir) 
 			robot_move(GO_LEFT, reg_speed, vel_pub, 0.5*ang_speed);
 		else
-			robot_move(GO_RIGHT, reg_speed, vel_pub, 0.5 * ang_speed);
+			robot_move(GO_RIGHT, reg_speed, vel_pub, 0.5*ang_speed);
+		updateDiff = false;
 	}
-	else if (side_dist_old - side > 0.08) {
+	else if ((side_dist_old - side) > 0.001) {
         ROS_INFO("getting closer! adjust");
 
 		if (wall_dir)
-			robot_move(GO_RIGHT, reg_speed, vel_pub, 0.5 * ang_speed);
+			robot_move(GO_RIGHT, reg_speed, vel_pub, 0.8*(side_dist_old - side)*ang_speed);
 		else
-			robot_move(GO_LEFT, reg_speed, vel_pub, 0.5 * ang_speed);
+			robot_move(GO_LEFT,reg_speed, vel_pub, 0.8*(side_dist_old - side)*ang_speed);
+		updateDiff = false;
 	}
 	else
 	{
 		robot_move(FORWARD, reg_speed, vel_pub);
 	}
-     side_dist_old = side;
+    ROS_INFO("Wall difference: %f", (side_dist_old - side));
+	
+	side_dist_old = side;
+	
+	
 }
 
 
@@ -509,8 +518,6 @@ void action(int state,ros::Publisher &vel_pub) {
 	}
 }
 
-
-
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "image_listener");
@@ -541,11 +548,11 @@ int main(int argc, char **argv)
 
         if (!checkBumperPressed(bumper,vel_pub)){
         	// ROS_INFO("bumper checking inside: %i %i %i",bumper[0],bumper[1],bumper[2]);
-             if ((ros::WallTime::now() - cycle_start).toSec() > cycle && openspace){
-                 ROS_INFO("360 check");
-                 rotate(-turn_speed,400,vel_pub);
-                 cycle_start = ros::WallTime::now();
-             }
+            if ((ros::WallTime::now() - cycle_start).toSec() > cycle && openspace){
+                ROS_INFO("360 check");
+                rotate(-turn_speed,400,vel_pub);
+                cycle_start = ros::WallTime::now();
+            }
 
 			// first it checks loop to see if you are within the loop admissible stage
 			// openSpace will be triggerred if foundLoop is True
