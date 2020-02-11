@@ -16,6 +16,12 @@
 #include <nav_msgs/Odometry.h>
 #include <tf/transform_datatypes.h>
 
+class bumperNode
+{ 
+    public:
+        bool activated;
+        string activated_side;
+}; 
 
 //odomotry parameters
 float posX = 0.0, posY = 0.0, yaw = 0.0;
@@ -230,33 +236,36 @@ bool checkLoop(){
 void moveDist(float targdist,ros::Publisher &vel_pub) 
 {
     ros::Rate loop_rate(10);
+    bumperNode bumperState;
+    bumperState = getBumperState(bumper, vel_pub);
     float prev_posX, prev_posY, distMoved = 0.0;
 	prev_posX = posX;
 	prev_posY = posY;
+
 	if (targdist > 0) {
 		while (distMoved < targdist) {
-			//ROS_INFO("Moving : %f", distMoved);			
+            if (bumperState.activated) {
+				robot_move(BACKWARD, app_speed1, vel_pub);
+				return;
+            }	
+		
 			distMoved = sqrt(pow((posX - prev_posX), 2) + pow((posY - prev_posY), 2));
 			vel.angular.z = 0;
 			vel.linear.x = reg_speed;
 			vel_pub.publish(vel);
 			ros::spinOnce();
 			loop_rate.sleep();
-
-			if (bumper[0] == 1 || bumper[1] == 1 || bumper[2] == 1) {
-				robot_move(BACKWARD, app_speed1, vel_pub);
-				return;
-			}		
 		}
 	}
+    
 	else if (targdist < 0) {
         targdist =-targdist;
 		while (distMoved < targdist) {
-			//ROS_INFO("Moving : %f", distMoved);
-			/*if (bumper[0] == 1 || bumper[1]==1 || bumper[2]==1){
-				robot_move(BACKWARD,app_speed1, vel_pub);
+			if (bumperState.activated) {
+				robot_move(BACKWARD, app_speed1, vel_pub);
 				return;
-			}*/
+            }
+
 			distMoved = sqrt(pow((posX - prev_posX), 2) + pow((posY - prev_posY), 2));
 			vel.angular.z = 0;
 			vel.linear.x = -app_speed1;
@@ -295,41 +304,42 @@ void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub
 }
 
 
-bool checkBumperPressed(uint8_t bumper[3],ros::Publisher &vel_pub)
+bumperNode getBumperState(uint8_t bumper[3],ros::Publisher &vel_pub)
 {
+    /* action logic
+    left bumper: move back --> rotate CW (right)
+    right bumper: move back --> rotate CCW (left)
+    center bumper: move back ONLY
+    */ 
+
+    // create bumper node, which will store bumper state
+    bumperNode bnode;
+
+    // static variable used in bumper checking process
 	float backDist = -0.1, fwdDist = 0.15, rotAngle = 30.0, rotSpeed = ang_speed;
+
 	if(bumper[0]==1){ //check left
 		ROS_INFO("Left bumper!\n");
-        moveDist(backDist, vel_pub);
-        rotate(rotSpeed,rotAngle, vel_pub);
-		moveDist(fwdDist, vel_pub);
-        return true;
+        bnode.activated_side = "left";
+        bnode.activated = true;
 	}
 	else if(bumper[2]==1){ //check right
 		ROS_INFO("Right bumper!\n");
-        moveDist(backDist, vel_pub);
-        rotate(-rotSpeed, rotAngle, vel_pub);
-		moveDist(fwdDist, vel_pub);
-        return true;
+        bnode.activated_side = "right";
+        bnode.activated = true;
 	}
 	else if(bumper[1]==1){//check center
+        bnode.activated_side = "center";
+        bnode.activated = true;
 		ROS_INFO("Center bumper!\n");
-        moveDist(backDist, vel_pub);
-		if(bumper[0]==1){ //check left
-			rotate(rotSpeed,rotAngle, vel_pub);
-			moveDist(fwdDist, vel_pub);
-			return true;
-		}
-		else if(bumper[2]==1){ //check right
-			rotate(-rotSpeed, rotAngle, vel_pub);
-			moveDist(fwdDist, vel_pub);
-			return true;
-		}
-        return true;
 	}
+
+    // bumper is never activated
     else{
-		return false;
+		bnode.activated = false;
 	}
+
+    return bnode
 }
 
 
@@ -509,7 +519,25 @@ void action(int state,ros::Publisher &vel_pub) {
 	}
 }
 
+void bumperAction(bumperNode bumperState){
 
+    if (bumperState.activated_side == "left") {
+        moveDist(backDist, vel_pub);
+        rotate(rotSpeed,rotAngle, vel_pub);
+		moveDist(fwdDist, vel_pub);
+    }
+
+    else if (bumperState.activated_side == "right") {
+        moveDist(backDist, vel_pub);
+        rotate(-rotSpeed, rotAngle, vel_pub);
+		moveDist(fwdDist, vel_pub);
+    }
+
+    else if (bumperState.activated_side == "center") {
+        moveDist(backDist, vel_pub);
+    }
+
+}
 
 int main(int argc, char **argv)
 {
@@ -537,10 +565,11 @@ int main(int argc, char **argv)
     while(ros::ok() && secondsElapsed <= 480) {
         ros::spinOnce();
 
-       // ROS_INFO("bumper checking outside: %i %i %i",bumper[0],bumper[1],bumper[2]);
+        // get bumperState
+        bumperState = getBumperState(bumper, vel_pub);
 
-        if (!checkBumperPressed(bumper,vel_pub)){
-        	// ROS_INFO("bumper checking inside: %i %i %i",bumper[0],bumper[1],bumper[2]);
+        // if bumper is not activated
+        if (!bumperState.activated){
              if ((ros::WallTime::now() - cycle_start).toSec() > cycle && openspace){
                  ROS_INFO("360 check");
                  rotate(-turn_speed,400,vel_pub);
@@ -555,7 +584,11 @@ int main(int argc, char **argv)
 			
 			current_state = state_Check();
 			action(current_state,vel_pub);
-            
+        }
+
+        // bumper is activated
+        else {
+            bumperAction(bumperState);
         }
 
         // The last thing to do is to update the timer.
