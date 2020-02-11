@@ -76,6 +76,41 @@ void bumperCallback(const kobuki_msgs::BumperEvent::ConstPtr& msg)
 	bumper[msg->bumper]=msg->state;
 }
 
+bumperNode getBumperState(uint8_t bumper[3], ros::Publisher &vel_pub)
+{
+    /* action logic
+    left bumper: move back --> rotate CW (right)
+    right bumper: move back --> rotate CCW (left)
+    center bumper: move back ONLY
+    */ 
+
+    // create bumper node, which will store bumper state
+    bumperNode bnode;
+
+	if(bumper[0]==1){ //check left
+		ROS_INFO("Left bumper!\n");
+        bnode.activated_side = "left";
+        bnode.activated = true;
+	}
+	else if(bumper[2]==1){ //check right
+		ROS_INFO("Right bumper!\n");
+        bnode.activated_side = "right";
+        bnode.activated = true;
+	}
+	else if(bumper[1]==1){//check center
+        bnode.activated_side = "center";
+        bnode.activated = true;
+		ROS_INFO("Center bumper!\n");
+	}
+
+    // bumper is never activated
+    else{
+		bnode.activated = false;
+	}
+
+    return bnode;
+}
+
 void laserCallback(const sensor_msgs::LaserScan::ConstPtr& msg)
 {
     // define laser and fill with float
@@ -305,42 +340,6 @@ void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub
 }
 
 
-bumperNode getBumperState(uint8_t bumper[3],ros::Publisher &vel_pub)
-{
-    /* action logic
-    left bumper: move back --> rotate CW (right)
-    right bumper: move back --> rotate CCW (left)
-    center bumper: move back ONLY
-    */ 
-
-    // create bumper node, which will store bumper state
-    bumperNode bnode;
-
-	if(bumper[0]==1){ //check left
-		ROS_INFO("Left bumper!\n");
-        bnode.activated_side = "left";
-        bnode.activated = true;
-	}
-	else if(bumper[2]==1){ //check right
-		ROS_INFO("Right bumper!\n");
-        bnode.activated_side = "right";
-        bnode.activated = true;
-	}
-	else if(bumper[1]==1){//check center
-        bnode.activated_side = "center";
-        bnode.activated = true;
-		ROS_INFO("Center bumper!\n");
-	}
-
-    // bumper is never activated
-    else{
-		bnode.activated = false;
-	}
-
-    return bnode
-}
-
-
 int state_Check() {
 	/*
 	state 0: empty space <- center, left, right all greater than limit
@@ -517,10 +516,10 @@ void action(int state,ros::Publisher &vel_pub) {
 	}
 }
 
-void bumperAction(bumperNode bumperState){
+void bumperAction(bumperNode bumperState, vel_pub){
     // static variable used in bumper checking process
 	float backDist = -0.1, fwdDist = 0.15, rotAngle = 30.0, rotSpeed = ang_speed;
-    
+
     if ((bumperState.activated_side.compare("left")) == 0) {
         moveDist(backDist, vel_pub);
         rotate(rotSpeed,rotAngle, vel_pub);
