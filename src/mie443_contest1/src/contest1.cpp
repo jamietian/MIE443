@@ -516,7 +516,7 @@ void action(int state,ros::Publisher &vel_pub) {
 	}
 }
 
-void bumperAction(bumperNode bumperState, vel_pub){
+void bumperAction(bumperNode bumperState, ros::Publisher &vel_pub){
     // static variable used in bumper checking process
 	float backDist = -0.1, fwdDist = 0.15, rotAngle = 30.0, rotSpeed = ang_speed;
 
@@ -571,7 +571,7 @@ int main(int argc, char **argv)
         if (!bumperState.activated){
              if ((ros::WallTime::now() - cycle_start).toSec() > cycle && openspace){
                  ROS_INFO("360 check");
-                 rotate(-turn_speed,400,vel_pub);
+                 rotate(-turn_speed,400, vel_pub);
                  cycle_start = ros::WallTime::now();
              }
 
@@ -587,7 +587,7 @@ int main(int argc, char **argv)
 
         // bumper is activated
         else {
-            bumperAction(bumperState);
+            bumperAction(bumperState, vel_pub);
         }
 
         // The last thing to do is to update the timer.
