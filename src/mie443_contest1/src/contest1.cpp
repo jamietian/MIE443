@@ -20,8 +20,17 @@
 class bumperNode
 { 
     public:
-        bool activated;
+        // by default, activated is false
+        bool activated = false;
         std::string activated_side;
+}; 
+
+class odomNode
+{ 
+    public:
+        // by default, activated is false
+        float X = 0.0;
+        float Y = 0.0;
 }; 
 
 //odomotry parameters
@@ -272,23 +281,29 @@ bool checkLoop(){
 void moveDist(float targdist,ros::Publisher &vel_pub) 
 {
     ros::Rate loop_rate(10);
-    bumperNode bumperState;
-    bumperState = getBumperState(bumper, vel_pub);
     float prev_posX, prev_posY, distMoved = 0.0;
 	prev_posX = posX;
 	prev_posY = posY;
 
 	if (targdist > 0) {
 		while (distMoved < targdist) {
+            bumperNode bumperState;
+            // only check for bumper after you move 2cm, as initially the bumper is pressed
+            if (distMoved > 0.02) {
+                // constantly update bumper state while you are moving
+                bumperState = getBumperState(bumper, vel_pub);
+            }
+
             if (bumperState.activated) {
-				robot_move(BACKWARD, app_speed1, vel_pub);
+                bumperAction(bumperState, vel_pub);
 				return;
             }	
-		
+            
+            // update distMoved
 			distMoved = sqrt(pow((posX - prev_posX), 2) + pow((posY - prev_posY), 2));
 			vel.angular.z = 0;
 			vel.linear.x = reg_speed;
-			vel_pub.publish(vel);
+            robot_move(FORWARD, reg_speed, vel_pub);
 			ros::spinOnce();
 			loop_rate.sleep();
 		}
@@ -297,8 +312,17 @@ void moveDist(float targdist,ros::Publisher &vel_pub)
 	else if (targdist < 0) {
         targdist =-targdist;
 		while (distMoved < targdist) {
+            bumperNode bumperState;
+            // only check for bumper after you move 2cm
+            if (distMoved > 0.02) {
+                // constantly update bumper state while you are moving
+                bumperState = getBumperState(bumper, vel_pub);
+            }
+            
+            bumperState = getBumperState(bumper, vel_pub);
+
 			if (bumperState.activated) {
-				robot_move(BACKWARD, app_speed1, vel_pub);
+                bumperAction(bumperState, vel_pub);
 				return;
             }
 
@@ -306,6 +330,8 @@ void moveDist(float targdist,ros::Publisher &vel_pub)
 			vel.angular.z = 0;
 			vel.linear.x = -app_speed1;
 			vel_pub.publish(vel);
+
+            robot_move()
 			ros::spinOnce();
 			loop_rate.sleep();
 		}
@@ -538,6 +564,18 @@ void bumperAction(bumperNode bumperState, ros::Publisher &vel_pub){
 
 }
 
+bool repeatitionCheck(odomNode repeat_odomNode) {
+    // checks for repeating movements
+    // when the odom has not moved f
+    distance = sqrt(pow((posX - repeat_odomNode.X), 2) + pow((posY - repeat_odomNode.Y), 2));
+
+    // both positions has not seen significant increase for the past 30 seconds
+    if (distance < 0.2) {
+        return true
+    }
+    return false
+}
+
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "image_listener");
@@ -555,18 +593,62 @@ int main(int argc, char **argv)
     uint64_t secondsElapsed = 0;
 
     uint16_t cycle = 90;
+    uint16_t repeat_cycle = 20;
+    
     ros::WallTime cycle_start = ros::WallTime::now();
+    ros::WallTime repeat_clock = ros::WallTime::now();
 
 	int current_state;
 	float current_speed;
+
+    // initial odom distance store
+    odomNode repeat_odomNode;
+    repeat_odomNode.X = posX;
+    repeat_odomNode.Y = posY;
 
     //main loop
     while(ros::ok() && secondsElapsed <= 480) {
         ros::spinOnce();
 
         // get bumperState
-        bumperState = getBumperState(bumper, vel_pub);
+        bumperNode bumperState = getBumperState(bumper, vel_pub);
 
+        // repeat check every 20 seconds
+        if ((ros::WallTime::now()-repeat_clock).toSec()) > repeat_cycle) {
+            // take note of the current x,y coordinate, and compare with previous
+            
+            ROS_INFO('debug!!');
+            rotate(-turn_speed, 360, vel_pub);
+
+            if (repeatitionCheck(repeat_odomNode)) {
+                
+                float openDist = std::max({left_d, center_d, right_d});
+    
+                // if all lasers are low values, rotate 180 and move the other direction
+                if (openDist < 0.5) {
+                    rotate(-turn_speed, 180, vel_pub);
+                    moveDist(0.3, vel_pub);
+                }
+                else if (openDist == left_d) {
+                    // rotate left and move forward - -> CCW
+                    rotate(-turn_speed, 30, vel_pub);
+                    moveDist(0.3, vel_pub);
+                }
+                else if (openDist == center_d) {
+                    // just move forward
+                    moveDist(0.3, vel_pub);
+                }
+                else /* openDist == right_d */ {
+                    // rotate right and move forward
+                    rotate(turn_speed, 30, vel_pub);
+                    moveDist(0.3, vel_pub);
+                }
+            }
+
+            // reset repeat clock
+            repeat_clock = ros::WallTime::now();
+        }
+        
         // if bumper is not activated
         if (!bumperState.activated){
              if ((ros::WallTime::now() - cycle_start).toSec() > cycle && openspace){

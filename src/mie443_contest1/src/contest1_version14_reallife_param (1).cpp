@@ -252,14 +252,18 @@ void moveDist(float targdist,ros::Publisher &vel_pub)
 	else if (targdist < 0) {
         targdist =-targdist;
 		while (distMoved < targdist) {
-			//ROS_INFO("Moving : %f", distMoved);
+			ROS_INFO("Moving : %f", distMoved);
 			// if (bumper[0] == 1 || bumper[1]==1 || bumper[2]==1){
 			// 	robot_move(BACKWARD,app_speed1, vel_pub);
 			// 	return;
 			// }
 			distMoved = sqrt(pow((posX - prev_posX), 2) + pow((posY - prev_posY), 2));
+
+			// setting up vel states, to go back
 			vel.angular.z = 0;
 			vel.linear.x = -app_speed1;
+			
+			// this will actually move the robot
 			vel_pub.publish(vel);
 			ros::spinOnce();
 			loop_rate.sleep();
