@@ -16,6 +16,23 @@
 #include <nav_msgs/Odometry.h>
 #include <tf/transform_datatypes.h>
 
+#include <string>
+
+class bumperNode
+{ 
+    public:
+        // by default, activated is false
+        bool activated = false;
+        std::string activated_side;
+}; 
+
+class odomNode
+{ 
+    public:
+        // by default, activated is false
+        float X = 0.0;
+        float Y = 0.0;
+}; 
 
 //odomotry parameters
 float posX = 0.0, posY = 0.0, yaw = 0.0;
@@ -536,11 +553,49 @@ int main(int argc, char **argv)
 	int current_state;
 	float current_speed;
 
+	// initial odom distance store
+    odomNode repeat_odomNode;
+    repeat_odomNode.X = posX;
+    repeat_odomNode.Y = posY;
+
     //main loop
     while(ros::ok() && secondsElapsed <= 480) {
         ros::spinOnce();
 
-       // ROS_INFO("bumper checking outside: %i %i %i",bumper[0],bumper[1],bumper[2]);
+		// ROS_INFO("bumper checking outside: %i %i %i",bumper[0],bumper[1],bumper[2]);
+		if ((ros::WallTime::now()-repeat_clock).toSec()) > repeat_cycle) {
+            // take note of the current x,y coordinate, and compare with previous
+            
+            ROS_INFO('debug!!');
+            rotate(-turn_speed, 360, vel_pub);
+
+            if (repeatitionCheck(repeat_odomNode)) {
+                
+                float openDist = std::max({left_d, center_d, right_d});
+    
+                // if all lasers are low values, rotate 180 and move the other direction
+                if (openDist < 0.5) {
+                    rotate(-turn_speed, 180, vel_pub);
+                    moveDist(0.3, vel_pub);
+                }
+                else if (openDist == left_d) {
+                    // rotate left and move forward - -> CCW
+                    rotate(-turn_speed, 30, vel_pub);
+                    moveDist(0.3, vel_pub);
+                }
+                else if (openDist == center_d) {
+                    // just move forward
+                    moveDist(0.3, vel_pub);
+                }
+                else /* openDist == right_d */ {
+                    // rotate right and move forward
+                    rotate(turn_speed, 30, vel_pub);
+                    moveDist(0.3, vel_pub);
+                }
+            }
+            // reset repeat clock
+            repeat_clock = ros::WallTime::now();
+        }
 
         if (!checkBumperPressed(bumper,vel_pub)){
         	// ROS_INFO("bumper checking inside: %i %i %i",bumper[0],bumper[1],bumper[2]);
