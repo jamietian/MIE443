@@ -64,6 +64,10 @@ float initial_X, initial_Y,current_X, current_Y;
 
 int turn_dir = 0;
 
+// header ------- add all core function's header here
+void moveDist(float targdist,ros::Publisher &vel_pub);
+void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub);
+
 void bumperCallback(const kobuki_msgs::BumperEvent::ConstPtr& msg)
 {
 	bumper[msg->bumper]=msg->state;
@@ -140,7 +144,6 @@ void odomCallback(const nav_msgs::Odometry::ConstPtr&msg)
     yaw = tf::getYaw(msg->pose.pose.orientation);
     //ROS_INFO("Position: (%f, %f) Orientation: %f rad or %f degrees.", posX, posY, yaw, RAD2DEG(yaw));
 }
-
 
 
 //type of movement
