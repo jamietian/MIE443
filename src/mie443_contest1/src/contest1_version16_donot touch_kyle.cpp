@@ -548,7 +548,10 @@ int main(int argc, char **argv)
     uint64_t secondsElapsed = 0;
 
     uint16_t cycle = 90;
+	uint16_t repeat_cycle = 20;
+
     ros::WallTime cycle_start = ros::WallTime::now();
+	ros::WallTime repeat_clock = ros::WallTime::now();
 
 	int current_state;
 	float current_speed;
@@ -563,7 +566,7 @@ int main(int argc, char **argv)
         ros::spinOnce();
 
 		// ROS_INFO("bumper checking outside: %i %i %i",bumper[0],bumper[1],bumper[2]);
-		if ((ros::WallTime::now()-repeat_clock).toSec()) > repeat_cycle) {
+		if ((ros::WallTime::now()-repeat_clock).toSec() > repeat_cycle) {
             // take note of the current x,y coordinate, and compare with previous
             
             ROS_INFO('debug!!');
