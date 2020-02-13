@@ -549,23 +549,76 @@ int main(int argc, char **argv)
     uint64_t secondsElapsed = 0;
 
     uint16_t cycle = 90;
+	uint16_t repeat_cycle = 30;
     ros::WallTime cycle_start = ros::WallTime::now();
+	ros::WallTime repeat_clock = ros::WallTime::now();
 
 	int current_state;
 	float current_speed;
+
+	// initial odom distance store
+    odomNode repeat_odomNode;
+    repeat_odomNode.X = posX;
+    repeat_odomNode.Y = posY;
 
     //main loop
     while(ros::ok() && secondsElapsed <= 480) {
         ros::spinOnce();
 
-       // ROS_INFO("bumper checking outside: %i %i %i",bumper[0],bumper[1],bumper[2]);
+       	// ROS_INFO("bumper checking outside: %i %i %i",bumper[0],bumper[1],bumper[2])
+		
+		if ((ros::WallTime::now() - repeat_clock).toSec() > repeat_cycle) {
+
+			distance = sqrt(pow((posX - repeat_odomNode.X), 2) + pow((posY - repeat_odomNode.Y), 2));
+
+			// if for the past 30 seconds, you have not moved away by 30 cms
+			if (distance < 0.3) {
+
+				ROS_INFO("repeating movements");
+				float openDist = std::max({left_d, center_d, right_d});
+
+				// if all lasers are low values, rotate 180 and move the other direction
+				if (openDist < 0.5) {
+					rotate(-turn_speed, 180, vel_pub);
+					moveDist(0.3, vel_pub);
+				}
+				else if (openDist == left_d) {
+					// rotate left and move forward - -> CCW
+					rotate(-turn_speed, 30, vel_pub);
+					moveDist(0.3, vel_pub);
+				}
+				else if (openDist == center_d) {
+					// just move forward
+					moveDist(0.3, vel_pub);
+				}
+				else /* openDist == right_d */ {
+					// rotate right and move forward
+					rotate(turn_speed, 30, vel_pub);
+					moveDist(0.3, vel_pub);
+				}
+
+				// set open space true, to allow the robot to explore
+				openspace = true;
+			}
+
+			// refresh your odomNode coordinates
+			repeat_clock = ros::WallTime::now();
+			repeat_odomNode.X = posX;
+    		repeat_odomNode.Y = posY;
+		}
 
         if (!checkBumperPressed(bumper,vel_pub)){
         	// ROS_INFO("bumper checking inside: %i %i %i",bumper[0],bumper[1],bumper[2]);
-			if ((ros::WallTime::now() - cycle_start).toSec() > cycle){
+			if ((ros::WallTime::now() - cycle_start).toSec() > cycle) {
 				ROS_INFO("360 check");
-				rotate(-0.3,400,vel_pub);
+				rotate(-0.3,360,vel_pub);
 				cycle_start = ros::WallTime::now();
+			}
+
+			// right
+			if (avgLaserDist[0] < 0.50) {
+				// 2 degrees CCW
+				rotate(-turn_speed*1.5, 2, vel_pub);
 			}
 
 			// first it checks loop to see if you are within the loop admissible stage
