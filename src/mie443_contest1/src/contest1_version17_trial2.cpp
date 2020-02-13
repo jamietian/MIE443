@@ -84,6 +84,7 @@ int turn_dir = 0;
 // header ------- add all core function's header here
 void moveDist(float targdist,ros::Publisher &vel_pub);
 void rotate (double angular_speed, double desired_angle, ros::Publisher &vel_pub);
+void repeatHandler(odomNode repeat_odomNode, ros::Publisher &vel_pub);
 
 void bumperCallback(const kobuki_msgs::BumperEvent::ConstPtr& msg)
 {
@@ -530,7 +531,7 @@ void action(int state,ros::Publisher &vel_pub) {
 	}
 }
 
-void repeatHandler(odomNode repeat_odomNode) {
+void repeatHandler(odomNode repeat_odomNode, ros::Publisher &vel_pub) {
 	float repeatDistDiff = sqrt(pow((posX - repeat_odomNode.X), 2) + pow((posY - repeat_odomNode.Y), 2));
 
 	// if for the past 30 seconds, you have not moved away by 30 cms
@@ -601,7 +602,7 @@ int main(int argc, char **argv)
 		
 		if ((ros::WallTime::now() - repeat_clock).toSec() > repeat_cycle) {
 
-			repeatHandler(repeat_odomNode);
+			repeatHandler(repeat_odomNode,vel_pub);
 
 			// refresh your clock and odomNode coordinates
 			repeat_clock = ros::WallTime::now();
