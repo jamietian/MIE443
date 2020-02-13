@@ -471,7 +471,7 @@ void action(int state,ros::Publisher &vel_pub) {
             }
             else{
                 ROS_INFO("openspace false");
-                robot_move(GO_RIGHT, reg_speed*0.8, vel_pub, 0.5*ang_speed);
+                robot_move(GO_RIGHT, reg_speed*0.65, vel_pub, 0.5*ang_speed);
             }
             
         }
@@ -543,7 +543,7 @@ int main(int argc, char **argv)
         	// ROS_INFO("bumper checking inside: %i %i %i",bumper[0],bumper[1],bumper[2]);
              if ((ros::WallTime::now() - cycle_start).toSec() > cycle){
                  ROS_INFO("360 check");
-                 rotate(-0.3,400,vel_pub);
+                 rotate(-0.4,360,vel_pub);
                  cycle_start = ros::WallTime::now();
              }
 
