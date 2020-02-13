@@ -569,10 +569,10 @@ int main(int argc, char **argv)
 		
 		if ((ros::WallTime::now() - repeat_clock).toSec() > repeat_cycle) {
 
-			distance = sqrt(pow((posX - repeat_odomNode.X), 2) + pow((posY - repeat_odomNode.Y), 2));
+			float repeatDistDiff = sqrt(pow((posX - repeat_odomNode.X), 2) + pow((posY - repeat_odomNode.Y), 2));
 
 			// if for the past 30 seconds, you have not moved away by 30 cms
-			if (distance < 0.3) {
+			if (repeatDistDiff < 0.3) {
 
 				ROS_INFO("repeating movements");
 				float openDist = std::max({left_d, center_d, right_d});
