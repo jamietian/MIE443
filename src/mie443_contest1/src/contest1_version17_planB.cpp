@@ -530,39 +530,7 @@ void action(int state,ros::Publisher &vel_pub) {
 	}
 }
 
-void repeatHandler(odomNode repeat_odomNode) {
-	float repeatDistDiff = sqrt(pow((posX - repeat_odomNode.X), 2) + pow((posY - repeat_odomNode.Y), 2));
 
-	// if for the past 30 seconds, you have not moved away by 30 cms
-	if (repeatDistDiff < 0.3) {
-
-		ROS_INFO("repeating movements");
-		float openDist = std::max({left_d, center_d, right_d});
-
-		// if all lasers are low values, rotate 180 and move the other direction
-		if (openDist < 0.5) {
-			rotate(-turn_speed, 180, vel_pub);
-			moveDist(0.3, vel_pub);
-		}
-		else if (openDist == left_d) {
-			// rotate left and move forward - -> CCW
-			rotate(-turn_speed, 30, vel_pub);
-			moveDist(0.3, vel_pub);
-		}
-		else if (openDist == center_d) {
-			// just move forward
-			moveDist(0.3, vel_pub);
-		}
-		else /* openDist == right_d */ {
-			// rotate right and move forward
-			rotate(turn_speed, 30, vel_pub);
-			moveDist(0.3, vel_pub);
-		}
-
-		// set open space true, to allow the robot to explore
-		openspace = true;
-	}
-}
 
 int main(int argc, char **argv)
 {
@@ -601,9 +569,39 @@ int main(int argc, char **argv)
 		
 		if ((ros::WallTime::now() - repeat_clock).toSec() > repeat_cycle) {
 
-			repeatHandler(repeat_odomNode);
+			float repeatDistDiff = sqrt(pow((posX - repeat_odomNode.X), 2) + pow((posY - repeat_odomNode.Y), 2));
 
-			// refresh your clock and odomNode coordinates
+			// if for the past 30 seconds, you have not moved away by 30 cms
+			if (repeatDistDiff < 0.3) {
+
+				ROS_INFO("repeating movements");
+				float openDist = std::max({left_d, center_d, right_d});
+
+				// if all lasers are low values, rotate 180 and move the other direction
+				if (openDist < 0.5) {
+					rotate(-turn_speed, 180, vel_pub);
+					moveDist(0.3, vel_pub);
+				}
+				else if (openDist == left_d) {
+					// rotate left and move forward - -> CCW
+					rotate(-turn_speed, 30, vel_pub);
+					moveDist(0.3, vel_pub);
+				}
+				else if (openDist == center_d) {
+					// just move forward
+					moveDist(0.3, vel_pub);
+				}
+				else /* openDist == right_d */ {
+					// rotate right and move forward
+					rotate(turn_speed, 30, vel_pub);
+					moveDist(0.3, vel_pub);
+				}
+
+				// set open space true, to allow the robot to explore
+				openspace = true;
+			}
+
+			// refresh your odomNode coordinates
 			repeat_clock = ros::WallTime::now();
 			repeat_odomNode.X = posX;
     		repeat_odomNode.Y = posY;
@@ -617,7 +615,7 @@ int main(int argc, char **argv)
 				cycle_start = ros::WallTime::now();
 			}
 
-			// wall distance handler
+			// right
 			if (avgLaserDist[0] < 0.50) {
 				// 2 degrees CCW
 				rotate(-turn_speed*1.5, 2, vel_pub);
